@@ -3,10 +3,8 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <errno.h>
+#include "helpers.h"
 
-void exit_with_error(int return_code, char *text);
-void print_error(char *text);
-int is_str_equal(const char *a, const char *b);
 
 void do_file(const char * file_name, const char * const * parms);
 void do_dir(const char * dir_name, const char * const * parms);
@@ -15,17 +13,28 @@ void do_printf(const char *name, const char *const *parms);
 
 const char* ARG_PRINTF = "-printf";
 const char* ARG_PRINTF_DEFAULT = "%s\n";
+const int MIN_ARGS = 2;
+
+/*
+ * Argument Structure:
+ * [0] = exec path
+ * [1] = target path (first "file_name")
+ * [n] = expressions
+ */
 
 int main(int argc, const char * const * argv)
 {
-    if(argc < 2)
-        exit_with_error(1, "Too few arguments given!");
+    if(argc < MIN_ARGS)
+        exit_with_error(EINVAL, "Too few arguments given!");
 
     do_file(argv[1], &argv[2]);
 }
 
 void do_file(const char * file_name, const char * const * parms)
 {
+    if(file_name == NULL)
+        return;
+
     if(parms == NULL || parms[0] == NULL || parms[1] == NULL)
         do_printf(file_name, NULL);
     else if(is_str_equal(parms[0], ARG_PRINTF))
@@ -38,26 +47,13 @@ void do_file(const char * file_name, const char * const * parms)
     }
 }
 
-void do_printf(const char * file_name, const char * const * parms) {
-    const char* format;
-
-    if(parms == NULL || parms[1] == NULL)
-        format = ARG_PRINTF_DEFAULT;
-    else
-        format = parms[1];
-
-    printf(format, file_name);
-}
-
 void do_dir(const char * dir_name, const char * const * parms)
 {
     struct dirent *dp;
     DIR *dfd = opendir(dir_name);
     if(dfd != NULL) {
         while((dp = readdir(dfd)) != NULL){
-            if(is_str_equal(dp->d_name, "."))
-                continue;
-            if(is_str_equal(dp->d_name, ".."))
+            if(is_str_equal(dp->d_name, ".") || is_str_equal(dp->d_name, ".."))
                 continue;
 
             char buf[FILENAME_MAX];
@@ -75,16 +71,14 @@ void do_dir(const char * dir_name, const char * const * parms)
     }
 }
 
-void exit_with_error(int return_code, char *text) {
-    print_error(text);
-    exit(return_code);
+void do_printf(const char * file_name, const char * const * parms) {
+    const char* format;
+
+    if(parms == NULL || parms[1] == NULL)
+        format = ARG_PRINTF_DEFAULT;
+    else
+        format = parms[1];
+
+    printf(format, file_name);
 }
 
-void print_error(char *text) {
-    fprintf(stderr, "ERROR: %s\n", text);
-}
-
-int is_str_equal(const char *a, const char *b)
-{
-    return strcmp(a,b) == 0;
-}
