@@ -1,19 +1,22 @@
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
-#include <errno.h>
+#include <string.h>
 #include "helpers.h"
 
+#define ARG_MIN 2
 
 void do_file(const char * file_name, const char * const * parms);
 void do_dir(const char * dir_name, const char * const * parms);
 
-void do_printf(const char *name, const char *const *parms);
+void do_print(const char *name);
+void do_help(void);
 
-const char* ARG_PRINTF = "-printf";
-const char* ARG_PRINTF_DEFAULT = "%s\n";
-const int MIN_ARGS = 2;
+static const char ARG_PRINT[] = "-print";
+static const char ARG_LIST[] = "-ls";
+static const char ARG_USER[] = "-user";
+static const char ARG_NAME[] = "-name";
+static const char ARG_TYPE[] = "-type";
 
 /*
  * Argument Structure:
@@ -22,12 +25,20 @@ const int MIN_ARGS = 2;
  * [n] = expressions
  */
 
-int main(int argc, const char * const * argv)
+int main(int argc, char* argv[])
 {
-    if(argc < MIN_ARGS)
-        exit_with_error(EINVAL, "Too few arguments given!");
+    if(argc < ARG_MIN){
+        do_help();
+        exit_with_error(1, "Too few arguments given!");
+    }
 
-    do_file(argv[1], &argv[2]);
+    argv[argc] = NULL;
+    if(!is_str_equal(argv[argc-1], ARG_PRINT)) //add default print to end if none is given
+        strcpy(argv[argc-1], ARG_PRINT);
+
+    do_file(argv[1], (const char**)&argv[2]);
+
+    return 0;
 }
 
 void do_file(const char * file_name, const char * const * parms)
@@ -35,15 +46,17 @@ void do_file(const char * file_name, const char * const * parms)
     if(file_name == NULL)
         return;
 
-    if(parms == NULL || parms[0] == NULL || parms[1] == NULL)
-        do_printf(file_name, NULL);
-    else if(is_str_equal(parms[0], ARG_PRINTF))
-        do_printf(file_name, &parms[1]);
-
     DIR *dir = opendir(file_name);
     if(dir != NULL){
         do_dir(file_name, parms);
         closedir(dir);
+    }
+
+    const char * p;
+    int i = 0;
+    while((p = parms[i++]) != NULL) {
+        if (is_str_equal(parms[0], ARG_PRINT))
+            do_print(file_name);
     }
 }
 
@@ -71,14 +84,16 @@ void do_dir(const char * dir_name, const char * const * parms)
     }
 }
 
-void do_printf(const char * file_name, const char * const * parms) {
-    const char* format;
+void do_print(const char * file_name)
+{
+    printf("%s\n", file_name);
+}
 
-    if(parms == NULL || parms[1] == NULL)
-        format = ARG_PRINTF_DEFAULT;
-    else
-        format = parms[1];
-
-    printf(format, file_name);
+void do_help(void)
+{
+    printf(
+            "Usage: find <dir> <expressions>\n\nExpressions:"
+            "  -print     returns name of directory\n"
+    );
 }
 
