@@ -35,13 +35,10 @@ int main(int argc, char* argv[])
 {
     if(argc < ARG_MIN){
         do_help();
-        exit_with_error(1, "Too few arguments given!");
+        exit_with_error(1, "Too few arguments given!\n");
     }
 
     argv[argc] = NULL;
-    if(!is_str_equal(argv[argc-1], ARG_PRINT) && !is_str_equal(argv[argc-1], ARG_LIST)) //add default print to end if none is given
-        strcpy(argv[argc-1], ARG_PRINT);
-
     do_file(argv[1], (const char**)&argv[2]);
 
     return 0;
@@ -64,12 +61,50 @@ void do_file(const char * file_name, const char * const * parms)
 void do_params(const char *file_name, const char *const *parms) {
     const char * p;
     int i = 0;
+    int output_done = 0;
+
     while((p = parms[i++]) != NULL) {
-        if (is_str_equal(parms[0], ARG_PRINT))
+        if(p[0] != '-')
+            exit_with_error(1, "%s invalid argument format\n", p);
+
+        if (is_str_equal(p, ARG_PRINT)) {
             do_print(file_name);
-        else if(is_str_equal(parms[0], ARG_LIST))
+            output_done = 1;
+            continue;
+        }
+
+        if(is_str_equal(p, ARG_LIST)) {
             do_list(file_name);
+            output_done = 1;
+            continue;
+        }
+
+        if(parms[i] == NULL || parms[i][0] == '-')
+            exit_with_error(1, "invalid argument format %s\n", p);
+
+        if(is_str_equal(p, ARG_USER)) {
+            //TODO: Implement -user argument
+            output_done = 0;
+            continue;
+        }
+
+        if(is_str_equal(p, ARG_NAME)) {
+            //TODO: Implement -name argument
+            output_done = 0;
+            continue;
+        }
+
+        if(is_str_equal(p, ARG_TYPE)) {
+            //TODO: Implement -type argument
+            output_done = 0;
+            continue;
+        }
+
+        exit_with_error(1, "invalid argument %s\n", p);
     }
+
+    if(!output_done)
+        do_print(file_name);
 }
 
 void do_dir(const char * dir_name, const char * const * parms)
