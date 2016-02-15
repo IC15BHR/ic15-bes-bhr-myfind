@@ -4,6 +4,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <pwd.h>
+#include <grp.h>
 #include "helpers.h"
 
 #define ARG_MIN 2
@@ -17,6 +19,8 @@ void do_list(const char * file_name);
 void do_help(void);
 
 void do_params(const char *name, const char *const *pString);
+
+void sprintf_permissions(const struct stat *fileStat, char *bufp);
 
 static const char ARG_PRINT[] = "-print";
 static const char ARG_LIST[] = "-ls";
@@ -110,9 +114,9 @@ void do_params(const char *file_name, const char *const *parms) {
 void do_dir(const char * dir_name, const char * const * parms)
 {
     struct dirent *dp;
-    DIR *dfd = opendir(dir_name);
-    if(dfd != NULL) {
-        while((dp = readdir(dfd)) != NULL){
+    DIR *dirp = opendir(dir_name);
+    if(dirp != NULL) {
+        while((dp = readdir(dirp)) != NULL){
             if(is_str_equal(dp->d_name, ".") || is_str_equal(dp->d_name, ".."))
                 continue;
 
@@ -125,9 +129,9 @@ void do_dir(const char * dir_name, const char * const * parms)
             else
                 do_file(path, parms);
         }
-        closedir(dfd);
+        closedir(dirp);
     } else {
-        do_file(dir_name, parms);
+        print_last_error();
     }
 }
 
@@ -142,12 +146,46 @@ void do_list(const char * file_name)
     struct tm lt;
 
     stat(file_name, &s);
-
+    //Get Last Modified Time
     localtime_r(&s.st_mtime, &lt);
     char timetext[80];
     strftime(timetext, 80, "%b %d %H:%M", &lt);
 
-    printf("%8lu %8lu %s %2lu %6d %6d %13s %s\n", s.st_ino, s.st_size, "P", s.st_nlink, s.st_uid, s.st_gid, timetext, file_name); //inode blocksize permissions linkcount owner group lastmoddate dirname
+    //Get User Name
+    const struct passwd *usr = getpwuid(s.st_uid);
+    if(usr == NULL){
+        print_last_error();
+        return;
+    }
+
+    //Get Group Name
+    const struct group *grp = getgrgid(s.st_gid);
+    if(grp == NULL){
+        print_last_error();
+        return;
+    }
+
+    //Get Permissions
+    char permissions[11];
+    sprintf_permissions(&s, permissions);
+
+    printf("%8lu %8lu", s.st_ino, s.st_size);
+    printf(" %s ", permissions);
+    printf("%2lu %10s %10s %13s %s\n", s.st_nlink, usr->pw_name, grp->gr_name, timetext, file_name); //inode blocksize permissions linkcount owner group lastmoddate dirname
+}
+
+void sprintf_permissions(const struct stat *fileStat, char *bufp)
+{
+    sprintf(bufp++, (S_ISDIR(fileStat->st_mode))  ? "d" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IRUSR) ? "r" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IWUSR) ? "w" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IXUSR) ? "x" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IRGRP) ? "r" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IWGRP) ? "w" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IXGRP) ? "x" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IROTH) ? "r" : "-");
+    sprintf(bufp++, (fileStat->st_mode & S_IWOTH) ? "w" : "-");
+    sprintf(bufp,   (fileStat->st_mode & S_IXOTH) ? "x" : "-");
 }
 
 void do_help(void)
