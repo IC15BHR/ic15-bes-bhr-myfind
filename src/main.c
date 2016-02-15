@@ -42,7 +42,7 @@ int main(int argc, char* argv[])
         exit_with_error(1, "Too few arguments given!\n");
     }
 
-    argv[argc] = NULL;
+    argv[argc] = NULL; //NULL Terminate
     do_file(argv[1], (const char**)&argv[2]);
 
     return 0;
@@ -53,7 +53,7 @@ void do_file(const char * file_name, const char * const * parms)
     if(file_name == NULL)
         return;
 
-    DIR *dir = opendir(file_name);
+    DIR *dir = opendir(file_name); //try open dir
     if(dir != NULL){
         do_dir(file_name, parms);
         closedir(dir);
