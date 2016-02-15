@@ -35,15 +35,14 @@ static const char ARG_TYPE[] = "-type";
  * [n] = expressions
  */
 
-int main(int argc, char* argv[])
+int main(int argc, const char* argv[])
 {
-    if(argc < ARG_MIN){
+    if(argc < ARG_MIN) {
         do_help();
         exit_with_error(1, "Too few arguments given!\n");
     }
 
-    argv[argc] = NULL; //NULL Terminate
-    do_file(argv[1], (const char**)&argv[2]);
+    do_file(argv[1], &argv[2]);
 
     return 0;
 }
