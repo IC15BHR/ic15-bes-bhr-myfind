@@ -10,4 +10,4 @@ void print_last_error(void);
 void print_error(char *format, ...);
 int is_str_equal(const char *s1, const char *s2);
 
-#endif //FIND_HELPERS_H
+#endif // FIND_HELPERS_H
