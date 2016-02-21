@@ -6,7 +6,7 @@
 #define FIND_HELPERS_H
 
 void exit_with_error(int return_code, char *format, ...);
-void print_last_error(void);
+void print_last_error(const char *const *parms);
 void print_error(char *format, ...);
 int is_str_equal(const char *s1, const char *s2);
 

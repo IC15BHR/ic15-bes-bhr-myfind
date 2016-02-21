@@ -20,7 +20,9 @@ void exit_with_error(int return_code, char *format, ...) {
   exit(return_code);
 }
 
-void print_last_error() { fprintf(stderr, "\nfind: %s\n", strerror(errno)); }
+void print_last_error(const char *const *parms) {
+  fprintf(stderr, "%s: %s\n", parms[0], strerror(errno));
+}
 
 void print_error(char *format, ...) {
   va_list argptr;
@@ -30,7 +32,6 @@ void print_error(char *format, ...) {
 }
 
 void print_error_valist(char *format, va_list argptr) {
-  fprintf(stderr, "\nfind: "); // prefix with program name
   vfprintf(stderr, format, argptr);
   fprintf(stderr, "\n"); // postfix with newline
 }
