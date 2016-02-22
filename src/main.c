@@ -6,15 +6,18 @@
 #include <time.h>
 #include <pwd.h>
 #include <grp.h>
+#include <libgen.h>
+#include <stdbool.h>
 #include "helpers.h"
 
 #define ARG_MIN 2
+#define CMD_NAME "myfind" //TODO: Better idea?
 
 void do_file(const char *file_name, const char *const *parms);
 void do_dir(const char *dir_name, const char *const *parms);
 
 void do_print(const char *name);
-void do_list(const char *file_name, const char *const *parms);
+void do_list(const char *file_name);
 
 void do_help(void);
 
@@ -22,7 +25,8 @@ void do_params(const char *name, const char *const *pString);
 
 void sprintf_permissions(const struct stat *fileStat, char *bufp);
 
-void do_user(const char *file_name, const char *value, const char *const *parms);
+int do_user(const char *file_name, const char *value);
+int do_pattern(const char *file_name, const char * pattern);
 
 static const char ARG_PRINT[] = "-print";
 static const char ARG_LIST[] = "-ls";
@@ -39,14 +43,17 @@ static const char ARG_PATH[] = "-path";
  * [n] = expressions
  */
 
-int main(int argc, const char *argv[]) {
+int main(int argc, char *argv[]) {
   if (argc < ARG_MIN) {
     do_help();
-    exit_with_error(1, "Too few arguments given!\n");
+    exit_with_error(1, "%s: Too few arguments given!", basename(argv[0]));
   }
 
-  do_file(argv[1], argv);
+  char * targetpath = realpath(argv[1], NULL); //TODO: free this on error and check error!!
 
+  do_file(targetpath, (const char *const *)argv); //TODO: Find better solution for cast
+
+  free(targetpath);
   return 0;
 }
 
@@ -72,7 +79,7 @@ void do_params(const char *file_name, const char *const *parms) {
     const char* command = p;
     //== Arguments Without Values ==
     if (command[0] != '-')
-      exit_with_error(1, "%s: %s invalid argument format\n", parms[0], command);
+      exit_with_error(1, "%s: %s invalid argument format\n", CMD_NAME, command);
 
     if (is_str_equal(command, ARG_PRINT)) {
       do_print(file_name);
@@ -81,7 +88,7 @@ void do_params(const char *file_name, const char *const *parms) {
     }
 
     if (is_str_equal(command, ARG_LIST)) {
-      do_list(file_name, parms);
+      do_list(file_name);
       output_done = 1;
       continue;
     }
@@ -94,12 +101,11 @@ void do_params(const char *file_name, const char *const *parms) {
 
     //== Arguments With Values ==
     if (parms[i] == NULL || parms[i][0] == '-')
-      exit_with_error(1, "%s: invalid argument format (value) %s\n",parms[0], p);
+      exit_with_error(1, "%s: invalid argument format (value) %s\n",CMD_NAME, p);
 
     const char* value = p++;
     if (is_str_equal(command, ARG_USER)) {
-      // TODO: Implement -user <userid/name> argument
-      do_user(file_name, value, parms);
+      if(!do_user(file_name, value)) break;
       output_done = 0;
       continue;
     }
@@ -117,24 +123,30 @@ void do_params(const char *file_name, const char *const *parms) {
     }
 
     if (is_str_equal(command, ARG_PATH)) {
-      // TODO: Implement -path <pattern> argument
+      if(!do_pattern(file_name, value)) break;
       output_done = 0;
       continue;
     }
 
-    exit_with_error(1, "invalid argument %s\n", command);
+    exit_with_error(1, "%s: invalid argument %s", CMD_NAME, command);
   }
 
   if (!output_done)
     do_print(file_name);
 }
 
-void do_user(const char *file_name, const char *value, const char *const *parms) {
+int do_user(const char *file_name, const char *value) {
   struct stat s;
-
   stat(file_name, &s);
+  printf("%s: got user '%s'\n", CMD_NAME, value); //for testing only
+  //TODO: Implement checking of username/userid
+  return true;
+}
 
-
+int do_pattern(const char *file_name, const char * pattern) {
+  //TODO: Implement with fnmatch and return TRUE if matching, else return FALSE
+  printf("%s: got pattern '%s' on '%s'", CMD_NAME, pattern, file_name); //only for testing
+  return true;
 }
 
 void do_dir(const char *dir_name, const char *const *parms) {
@@ -156,13 +168,13 @@ void do_dir(const char *dir_name, const char *const *parms) {
     }
     closedir(dirp);
   } else {
-    print_last_error(parms);
+    print_last_error(CMD_NAME);
   }
 }
 
 void do_print(const char *file_name) { printf("%s\n", file_name); }
 
-void do_list(const char *file_name, const char *const *parms) {
+void do_list(const char *file_name) {
   struct stat s;
   struct tm lt;
 
@@ -175,14 +187,14 @@ void do_list(const char *file_name, const char *const *parms) {
   // Get User Name
   const struct passwd *usr = getpwuid(s.st_uid);
   if (usr == NULL) {
-    print_last_error(parms);
+    print_last_error(CMD_NAME);
     return;
   }
 
   // Get Group Name
   const struct group *grp = getgrgid(s.st_gid);
   if (grp == NULL) {
-    print_last_error(parms);
+    print_last_error(CMD_NAME);
     return;
   }
 
@@ -211,9 +223,9 @@ void sprintf_permissions(const struct stat *fileStat, char *bufp) {
 
 void do_help(void) {
   printf("Usage: find <dir> <expressions>\n\nExpressions:"
-         "  -print     returns name of directory\n"
-         "  -ls        returns formatted list\n"
-         "  -ls        returns formatted list\n"
-         "  -ls        returns formatted list\n"
-         "  -ls        returns formatted list\n");
+                 "  -print     returns name of directory\n"
+                 "  -ls        returns formatted list\n"
+                 "  -ls        returns formatted list\n"
+                 "  -ls        returns formatted list\n"
+                 "  -ls        returns formatted list\n");
 }

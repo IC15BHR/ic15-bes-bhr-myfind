@@ -8,6 +8,7 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <libgen.h>
 #include "helpers.h"
 
 void print_error_valist(char *format, va_list argptr);
@@ -20,8 +21,8 @@ void exit_with_error(int return_code, char *format, ...) {
   exit(return_code);
 }
 
-void print_last_error(const char *const *parms) {
-  fprintf(stderr, "%s: %s\n", parms[0], strerror(errno));
+void print_last_error(const char * cmd_name) {
+  fprintf(stderr, "%s: %s\n", cmd_name, strerror(errno));
 }
 
 void print_error(char *format, ...) {
