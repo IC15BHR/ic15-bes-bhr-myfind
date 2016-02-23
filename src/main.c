@@ -49,8 +49,7 @@ size_t sprintf_groupname(char *buf, gid_t gid);
 size_t sprintf_filetime(char *buf, const time_t *time);
 ////// GLOBALS
 
-////// CONSTANTS TODO: Sort!
-
+////// CONSTANTS
 enum CMD {
     PRINT,
     LS,
@@ -118,7 +117,7 @@ void do_dir(const char *dir_name, const char *const *parms) {
                 continue;
             }
 
-            char path[PATH_MAX]; // TODO: Not efficient - Malloc/Realloc?
+            char path[PATH_MAX]; // TODO: Not standardized! - Malloc/Realloc?
             snprintf(path, PATH_MAX, "%s/%s", dir_name, dp->d_name);
 
             if (errno != 0) {
@@ -230,7 +229,7 @@ int do_type(const char *file_name, const char *value) {
             mask = mask | S_IFDIR;
             break;
         case 'p':
-            mask = mask | S_IFREG;
+            mask = mask | S_IFREG; //TODO: Wrong!
             break;
         case 'f':
             mask = mask | S_IFIFO;
@@ -293,8 +292,22 @@ int do_user(const char *file_name, const char *value) {
 }
 
 int do_path(const char *file_name, const char *value) {
-    // TODO: Implement path
-    printf("check path '%s' on '%s'\n", value, file_name); // only for testing
+    struct stat s;
+    int result = 0;
+
+    lstat(file_name, &s);
+    if(S_ISDIR(s.st_mode))
+        return false;
+
+    result = fnmatch(value, file_name, 0);
+
+    if(result == 0)
+        return true;
+    else if(result == FNM_NOMATCH)
+        return false;
+
+    error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
+    return false;
     return true;
 }
 
