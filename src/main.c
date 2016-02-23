@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <error.h>
 #include <errno.h>
+#include <limits.h>
+#include <unistd.h>
 
 ////// DEFINES
 #define ARG_MIN 2
@@ -27,6 +29,7 @@ void do_list(const char *file_name);
 
 void do_help(void);
 
+void do_link(const char *file_name, const char *const *parms);
 void do_params(const char *name, const char *const *parms);
 
 void sprintf_permissions(const struct stat *fileStat, char *bufp);
@@ -50,7 +53,6 @@ static const char ARG_NAME[] = "-name";
 static const char ARG_TYPE[] = "-type";
 static const char ARG_NOUSER[] = "-nouser";
 static const char ARG_PATH[] = "-path";
-static const char ARG_PATTERN[] = "-pattern";
 
 ////// FUNCTIONS TODO: Sort functions by call-order!
 
@@ -63,7 +65,9 @@ int main(int argc, const char *argv[]) {
   char * targetpath = realpath(argv[1], NULL); //TODO: Memoryleak on error! Better way?
   debug_print("DEBUG: targetpath = %s\n", targetpath);
 
-  do_file(targetpath, argv);
+  //&argv[2] because "Anleitung" says so:
+  //"parms ist dabei die Adresse des ersten Arguments (so wie beim argv), das eine Aktion ist"
+  do_file(targetpath, &argv[2]);
 
   free(targetpath);
   return 0;
@@ -81,8 +85,6 @@ void do_dir(const char *dir_name, const char *const *parms) {
 
   DIR *dirp = opendir(dir_name);
   if (dirp != NULL) {
-    do_params(dir_name, parms);
-
     //readdir returns NULL && errno=0 on EOF, errno != 0 is not EOF!
     while (((dp = readdir(dirp)) != NULL) || errno != 0) {
       if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) {
@@ -99,7 +101,7 @@ void do_dir(const char *dir_name, const char *const *parms) {
         continue;
       }
 
-      debug_print("DEBUG: readdir '%s'\n", dp->d_name);
+      debug_print("DEBUG: readdir '%s' '%s'\n", dp->d_name, path);
       do_file(path, parms);
     }
 
@@ -111,6 +113,9 @@ void do_dir(const char *dir_name, const char *const *parms) {
 }
 
 void do_file(const char *file_name, const char *const *parms) {
+  int result = 0;
+  struct stat status;
+
   if (file_name == NULL){
     debug_print("DEBUG: NULL filename in do_file %s","\n");
     return;
@@ -118,23 +123,45 @@ void do_file(const char *file_name, const char *const *parms) {
 
   debug_print("DEBUG: do_file '%s'\n", file_name);
 
-  DIR *dir = opendir(file_name); // try open dir because d_type is not standardized
-  debug_print("DEBUG: opendir (%d)\n", errno);
-  if (dir != NULL) {
-    closedir(dir);
-    do_dir(file_name, parms);
-  } else if (errno == 0 || errno == 20) {
+  errno = 0;
+  result = lstat(file_name, &status);
+  debug_print("DEBUG: lstat (%d:%d)\n", result, errno);
+
+  if (result == -1) {
+    error(0, errno, "can't get stat of '%s'", file_name);
+    errno = 0;
+  } else if (S_ISDIR(status.st_mode)) {
     do_params(file_name, parms);
+    do_dir(file_name, parms);
+  } else if (S_ISREG(status.st_mode)) {
+    do_params(file_name, parms);
+  } else if (S_ISLNK(status.st_mode)) {
+    do_params(file_name, parms);
+    //follow links: do_link(file_name, parms);
+  } else {
+    do_params(file_name, parms);
+  }
+}
+
+void do_link(const char *file_name, const char *const *parms) {
+  char *buf;
+  ssize_t len = 0;
+
+  buf = realpath(file_name, NULL);
+  debug_print("DEBUG: readlink (%lf:%d)\n", (double)len, errno);
+
+  if(buf == NULL){
+    error(0, errno, "can't handle link '%s'", file_name);
     errno = 0;
   } else {
-    error(0, errno, "can't open target '%s'", file_name);
-    errno = 0;
+    do_file(buf, parms);
   }
+  free(buf);
 }
 
 void do_params(const char *file_name, const char *const *parms) {
   const char *p;
-  int i = 2;
+  int i = 0;
   int output_done = 0;
 
   while ((p = parms[i++]) != NULL) {
@@ -191,12 +218,6 @@ void do_params(const char *file_name, const char *const *parms) {
       continue;
     }
 
-    if (strcmp(command, ARG_PATTERN) == 0) {
-      if(!do_pattern(file_name, value)) break;
-      output_done = 0;
-      continue;
-    }
-
     error(1, 0, "invalid argument '%s'", command);
   }
 
@@ -231,12 +252,6 @@ int do_user(const char *file_name, const char *value) {
 int do_path(const char *file_name, const char *value) {
   //TODO: Implement path
   printf("check path '%s' on '%s'\n", value, file_name); //only for testing
-  return true;
-}
-
-int do_pattern(const char *file_name, const char *value) {
-  //TODO: Implement with fnmatch and return TRUE if matching, else return FALSE
-  printf("check pattern '%s' on '%s'\n", value, file_name); //only for testing
   return true;
 }
 
@@ -293,12 +308,11 @@ void sprintf_permissions(const struct stat *fileStat, char *bufp) {
 
 void do_help(void) {
   printf("Usage: find <dir> <expressions>\n\nExpressions:"
-         "  -print             returns formatted list\n"
-         "  -ls                returns formatted list\n"
-         "  -user <name/uid>   file-owners filter\n"
-         "  -name <filename>   file-name filter\n"
-         "  -type <type>       node-type filter\n"
-         "  -nouser            filter nonexisting owners\n"
-         "  -path <path>       path filter\n"
-         "  -pattern <pattern> pattern filter\n");
+         "  -print              returns formatted list\n"
+         "  -ls                 returns formatted list\n"
+         "  -user   <name/uid>  file-owners filter\n"
+         "  -name   <pattern>   file-name filter\n"
+         "  -type   [bcdpfls]   node-type filter\n"
+         "  -nouser             filter nonexisting owners\n"
+         "  -path   <pattern>   path filter\n");
 }
