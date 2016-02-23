@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.4)
 project(Myfind)
 
-set(SOURCE_FILES src/main.c src/helpers.c src/helpers.h)
+set(SOURCE_FILES src/main.c)
 
 # add a target to generate API documentation with Doxygen
 find_package(Doxygen)
