@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <unistd.h>
+#include <fnmatch.h>
 
 ////// DEFINES
 #define ARG_MIN 2
@@ -28,8 +29,8 @@
 void do_file(const char *file_name, const char *const *parms);
 void do_dir(const char *dir_name, const char *const *parms);
 
-void do_print(const char *name);
-void do_list(const char *file_name);
+int do_print(const char *file_name);
+int do_list(const char *file_name);
 
 void do_help(void);
 
@@ -46,17 +47,37 @@ int do_path(const char *file_name, const char *value);
 size_t sprintf_username(char *buf, uid_t uid);
 size_t sprintf_groupname(char *buf, gid_t gid);
 size_t sprintf_filetime(char *buf, const time_t *time);
-
 ////// GLOBALS
 
 ////// CONSTANTS TODO: Sort!
-static const char ARG_PRINT[] = "-print";
-static const char ARG_LIST[] = "-ls";
-static const char ARG_USER[] = "-user";
-static const char ARG_NAME[] = "-name";
-static const char ARG_TYPE[] = "-type";
-static const char ARG_NOUSER[] = "-nouser";
-static const char ARG_PATH[] = "-path";
+
+enum CMD {
+    PRINT,
+    LS,
+    USER,
+    NAME,
+    TYPE,
+    NOUSER,
+    PATH
+};
+
+typedef struct CMD_OPTS {
+    enum CMD cmd;
+    const char *text;
+    bool stopping;
+    bool has_value;
+} CMD_OPTS_t;
+
+static const CMD_OPTS_t COMMANDS[] = {
+        { PRINT, "-print", false, false },
+        { LS,    "-ls", false, false },
+        { USER,  "-user", true, true },
+        { NAME,  "-name", true, true },
+        { TYPE,  "-type", true, true },
+        { NOUSER,"-nouser", true, false },
+        { PATH,  "-path", true, true }
+};
+#define COMMANDS_COUNT 7
 
 ////// FUNCTIONS TODO: Sort functions by call-order!
 
@@ -146,70 +167,42 @@ void do_file(const char *file_name, const char *const *parms) {
 void do_params(const char *file_name, const char *const *parms) {
     const char *command, *value;
     int i = 0;
-    int output_done = 0;
+    int result = 0;
+    bool stop = false;
 
-    while ((command = parms[i++]) != NULL) {
-        //== Arguments Without Values ==
-        if (command[0] != '-')
-            error(12, 1, "invalid argument format '%s'", command);
+    while((command = parms[i++]) != NULL) {
+        bool found = false;
+        for (size_t j = 0; j < COMMANDS_COUNT; j++) {
+            CMD_OPTS_t c = COMMANDS[j];
+            if(strcmp(c.text, command) != 0)
+                continue;
+            found = true;
 
-        if (strcmp(command, ARG_PRINT) == 0) {
-            do_print(file_name);
-            output_done = 1;
-            continue;
+            if(c.has_value){
+                if((value = parms[i++]) == NULL) {
+                    error(6, 0, "missing value on '%s'", command);
+                    return;
+                }
+            } else {
+                value = "";
+            }
+            switch(c.cmd){
+                case PRINT: result = do_print(file_name); break;
+                case LS:    result = do_list(file_name); break;
+                case USER:  result = do_user(file_name, value); break;
+                case NAME:  result = do_name(file_name, value); break;
+                case TYPE:  result = do_type(file_name, value); break;
+                case NOUSER:result = do_nouser(file_name); break;
+                case PATH:  result = do_path(file_name, value); break;
+            }
+            if(!result && c.stopping)
+                stop = true;
         }
-
-        if (strcmp(command, ARG_LIST) == 0) {
-            do_list(file_name);
-            output_done = 1;
-            continue;
-        }
-
-        if (strcmp(command, ARG_NOUSER) == 0) {
-            output_done = 1;
-            if (!do_nouser(file_name))
-                break;
-            output_done = 0;
-            continue;
-        }
-
-        //== Arguments With Values ==
-        if ((value = parms[i++]) == NULL)
-            error(11, 1, "invalid argument format (value) '%s'", command);
-
-        if (strcmp(command, ARG_USER) == 0) {
-            output_done = 1;
-            if (!do_user(file_name, value))
-                break;
-            output_done = 0;
-            continue;
-        }
-
-        if (strcmp(command, ARG_NAME) == 0) {
-            output_done = 1;
-            if (!do_name(file_name, value))
-                break;
-            continue;
-        }
-
-        if (strcmp(command, ARG_TYPE) == 0) {
-            if (!do_type(file_name, value))
-                break;
-            output_done = 1;
-            continue;
-        }
-
-        if (strcmp(command, ARG_PATH) == 0) {
-            if (!do_path(file_name, value))
-                break;
-            output_done = 1;
-            continue;
-        }
-
-        error(10, 1, "invalid argument '%s'", command);
+        if(stop) break;
+        if(!found)
+            error(4, 0, "invalid argument '%s'", command);
     }
-
-    if (!output_done) // outputs print if no last print/ls is given in args
+    if(parms[i-1] == NULL || (!stop && strcmp(parms[i-1], "-print") && strcmp(parms[i-1], "-ls"))) //TODO: unhack it
         do_print(file_name);
 }
 
@@ -258,9 +251,23 @@ int do_type(const char *file_name, const char *value) {
 }
 
 int do_name(const char *file_name, const char *value) {
-    // TODO: Implement name-check
-    error(0, 0, "NOT IMPLEMENTED: check name '%s' on '%s'", value, file_name);
-    return true;
+    struct stat s;
+    int result = 0;
+
+    lstat(file_name, &s);
+    if(S_ISDIR(s.st_mode))
+        return false;
+
+    char *name = basename((char *)file_name);
+    result = fnmatch(value, name, 0);
+
+    if(result == 0)
+        return true;
+    else if(result == FNM_NOMATCH)
+        return false;
+
+    error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
+    return false;
 }
 
 int do_user(const char *file_name, const char *value) {
@@ -291,9 +298,9 @@ int do_path(const char *file_name, const char *value) {
     return true;
 }
 
-void do_print(const char *file_name) { printf("%s\n", file_name); }
+int do_print(const char *file_name) { return printf("%s\n", file_name); }
 
-void do_list(const char *file_name) {
+int do_list(const char *file_name) {
     struct stat s;
 
     lstat(file_name, &s);
@@ -318,6 +325,8 @@ void do_list(const char *file_name) {
     printf("%8lu %8lu", s.st_ino, s.st_size);
     printf(" %s ", permissions);
     printf("%2lu %10s %10s %13s %s\n", s.st_nlink, user_name, group_name, timetext, file_name);
+
+    return true;
 }
 
 size_t sprintf_filetime(char *buf, const time_t *time) {
