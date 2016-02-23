@@ -166,6 +166,7 @@ void do_params(const char *file_name, const char *const *parms) {
         }
 
         if (strcmp(command, ARG_NOUSER) == 0) {
+            output_done = 1;
             if (!do_nouser(file_name))
                 break;
             output_done = 0;
@@ -177,16 +178,17 @@ void do_params(const char *file_name, const char *const *parms) {
             error(11, 1, "invalid argument format (value) '%s'", command);
 
         if (strcmp(command, ARG_USER) == 0) {
+            output_done = 1;
             if (!do_user(file_name, value))
                 break;
-            output_done = 1;
+            output_done = 0;
             continue;
         }
 
         if (strcmp(command, ARG_NAME) == 0) {
+            output_done = 1;
             if (!do_name(file_name, value))
                 break;
-            output_done = 1;
             continue;
         }
 
@@ -247,6 +249,7 @@ int do_type(const char *file_name, const char *value) {
             mask = mask | S_IFSOCK;
             break;
         default:
+            error(18,0, "invalid flag on type '%c'", value[i]);
             break;
         }
     }
@@ -268,14 +271,15 @@ int do_user(const char *file_name, const char *value) {
 
     lstat(file_name, &s);
 
-    uid = strtol(value, &tmp, 0);
+    pass = getpwnam(value);
+    if (pass == NULL) {
+        uid = strtol(value, &tmp, 0);
 
-    if (*tmp != '\0') {
-        pass = getpwnam(value);
-        if (pass == NULL) {
+        if (*tmp != '\0') {
             error(1, errno, "Can't find user '%s'", value);
             return false;
         }
+    } else {
         uid = pass->pw_uid;
     }
     return uid == s.st_uid;
@@ -300,7 +304,8 @@ void do_list(const char *file_name) {
 
     // Get User Name
     char user_name[255]; // TODO: read buffer-size with sysconf()
-    sprintf_username(user_name, s.st_uid);
+    if(sprintf_username(user_name, s.st_uid) == 0)
+        error(0, errno, "Failed to get user from id '%d'", s.st_uid);
 
     // Get Group Name
     char group_name[255]; // TODO: read buffer-size with sysconf()
@@ -327,8 +332,8 @@ size_t sprintf_username(char *buf, uid_t uid) {
     const struct passwd *usr = getpwuid(uid);
 
     if (usr == NULL) {
-        error(0, errno, "Failed to get user from id '%d'", uid);
-        buf[0] = '\0';
+        if(buf != NULL)
+            buf[0] = '\0';
         return 0;
     } else {
         if (buf != NULL)
