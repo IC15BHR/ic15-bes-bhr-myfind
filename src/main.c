@@ -133,30 +133,9 @@ void do_file(const char *file_name, const char *const *parms) {
   } else if (S_ISDIR(status.st_mode)) {
     do_params(file_name, parms);
     do_dir(file_name, parms);
-  } else if (S_ISREG(status.st_mode)) {
-    do_params(file_name, parms);
-  } else if (S_ISLNK(status.st_mode)) {
-    do_params(file_name, parms);
-    //follow links: do_link(file_name, parms);
   } else {
     do_params(file_name, parms);
   }
-}
-
-void do_link(const char *file_name, const char *const *parms) {
-  char *buf;
-  ssize_t len = 0;
-
-  buf = realpath(file_name, NULL);
-  debug_print("DEBUG: readlink (%lf:%d)\n", (double)len, errno);
-
-  if(buf == NULL){
-    error(0, errno, "can't handle link '%s'", file_name);
-    errno = 0;
-  } else {
-    do_file(buf, parms);
-  }
-  free(buf);
 }
 
 void do_params(const char *file_name, const char *const *parms) {
