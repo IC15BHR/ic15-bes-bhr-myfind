@@ -1,1 +1,5 @@
-/output
+.idea/*
+output/*
+test/*
+!/test/bic-myfind
+!/test/*.sh
