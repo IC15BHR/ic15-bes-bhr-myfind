@@ -1,3 +1,23 @@
+/**
+ * @file my_find.c
+ * Betriebssysteme my_find file
+ * Beispiel 1
+ *
+ * @author Baliko Markus	    <ic15b001@technikum-wien.at>
+ * @author Haubner Alexander    <ic15b033@technikum-wien.at>
+ * @author Riedmann Michael     <ic15b054@technikum-wien.at>
+ *
+ * @date 2015/02/25
+ *
+ * @version 1
+ *
+ * @todo comments
+ * @todo error handling
+ */
+
+/*
+ * -------------------------------------------------------------- includes --
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -12,18 +32,27 @@
 #include <errno.h>
 #include <fnmatch.h>
 
-////// DEFINES
+/*
+ * -------------------------------------------------------------- defines --
+ */
 #define ARG_MIN 2
 #define DEBUG 0
 
-////// MACROS
+/*
+ * -------------------------------------------------------------- macros --
+ */
 #define debug_print(fmt, ...)                                                                                          \
     do {                                                                                                               \
         if (DEBUG)                                                                                                     \
             fprintf(stdout, fmt, __VA_ARGS__);                                                                         \
     } while (0)
-
-////// PROTOTYPES TODO: Sort prototypes by call-order!
+/*
+ * -------------------------------------------------------------- globals --
+ */
+/*
+ * -------------------------------------------------------------- prototypes --
+ */
+// TODO: Sort prototypes by call-order!
 void do_file(const char *file_name, const char *const *parms);
 void do_dir(const char *dir_name, const char *const *parms);
 
@@ -45,14 +74,36 @@ int do_path(const char *file_name, const char *value);
 size_t sprintf_username(char *buf, uid_t uid);
 size_t sprintf_groupname(char *buf, gid_t gid);
 size_t sprintf_filetime(char *buf, const time_t *time);
-////// GLOBALS
 
-////// CONSTANTS
+/*
+ * -------------------------------------------------------------- constants --
+ */
 enum OPT { UNKNOWN, PRINT, LS, USER, NAME, TYPE, NOUSER, PATH };
 
 const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
-////// FUNCTIONS TODO: Sort functions by call-order!
 
+/*
+ * -------------------------------------------------------------- functions --
+ */
+// TODO: Sort functions by call-order!
+
+/**
+ * Main Funktion
+ * Dieses Programm ließt die Nutzereingaben:
+ * -ls, -user, -name, -type, -nouser, -path
+ * aus.
+ * Es arbeitet dabei wie das "find" programm von Linux.
+ *
+ * \param argc ist die Anzahl der Argumente
+ * \param argv ist das Argument selbst
+ *
+ * \func do_help() wird aufgerufen wenn zuwenig Argumente übergeben werden
+ * \func do_file() wird aufgerufen wenn eine richtige Anzahl an Argumenten übergeben wurde
+ *
+ * \return always "success"
+ * \return 0 always
+ * TODO: beschreiben was die Funktion macht?
+ */
 int main(int argc, const char *argv[]) {
     if (argc < ARG_MIN) {
         do_help();
@@ -70,7 +121,57 @@ int main(int argc, const char *argv[]) {
     free(targetpath);
     return 0;
 }
+/**
+ * do_file Funktion
+ * Diese Funktion überprüft ob es sich um ein File oder um ein Directory handelt
+ *
+ * \param file_name ist der absolute/relative Pfard
+ * TODO: Absolut oder relativ?
+ * \param params übernimmt das dritte Argument [2]
+ *
+ * \func do_params() wird aufgerufen um die Paramenter auszulesen.
+ * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt
+ *
+ * \return kein Return-Wert da "void"
+ */
+void do_file(const char *file_name, const char *const *parms) {
+    int result = 0;
+    struct stat status;
 
+    if (file_name == NULL) {
+        debug_print("DEBUG: NULL filename in do_file %s", "\n");
+        return;
+    }
+
+    debug_print("DEBUG: do_file '%s'\n", file_name);
+
+    errno = 0;
+    result = lstat(file_name, &status);
+    debug_print("DEBUG: lstat (%d:%d)\n", result, errno);
+
+    if (result == -1) {
+        error(0, errno, "can't get stat of '%s'", file_name);
+        errno = 0;
+    } else if (S_ISDIR(status.st_mode)) {
+        do_params(file_name, parms);
+        do_dir(file_name, parms);
+    } else {
+        do_params(file_name, parms);
+    }
+}
+
+/**
+ * do_dir Funktion
+ * Diese Funktion überprüft ob es sich bei dem angegebenen Argument um ein directory
+ * oder um ein file handelt.
+ * Handelt es sich um ein File, wird in die Funktion do_file() gesprungen.
+ *
+ * \param dir_name
+ * \param params
+ *
+ * \func opendir() öffnet einen diretory stream um die elemente des directorys zu laden
+ * \func readdir() liefert einen pointer zu einem "struct dirent" der den Eintrag beschreibt
+ */
 void do_dir(const char *dir_name, const char *const *parms) {
     struct dirent *dp;
 
@@ -108,32 +209,6 @@ void do_dir(const char *dir_name, const char *const *parms) {
     } else {
         error(0, errno, "can't open dir '%s'", dir_name);
         errno = 0;
-    }
-}
-
-void do_file(const char *file_name, const char *const *parms) {
-    int result = 0;
-    struct stat status;
-
-    if (file_name == NULL) {
-        debug_print("DEBUG: NULL filename in do_file %s", "\n");
-        return;
-    }
-
-    debug_print("DEBUG: do_file '%s'\n", file_name);
-
-    errno = 0;
-    result = lstat(file_name, &status);
-    debug_print("DEBUG: lstat (%d:%d)\n", result, errno);
-
-    if (result == -1) {
-        error(0, errno, "can't get stat of '%s'", file_name);
-        errno = 0;
-    } else if (S_ISDIR(status.st_mode)) {
-        do_params(file_name, parms);
-        do_dir(file_name, parms);
-    } else {
-        do_params(file_name, parms);
     }
 }
 
