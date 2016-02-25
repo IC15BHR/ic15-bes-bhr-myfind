@@ -48,7 +48,8 @@ size_t sprintf_filetime(char *buf, const time_t *time);
 ////// GLOBALS
 
 ////// CONSTANTS
-enum CMD {
+enum OPT {
+    UNKNOWN,
     PRINT,
     LS,
     USER,
@@ -58,23 +59,7 @@ enum CMD {
     PATH
 };
 
-typedef struct CMD_OPTS {
-    enum CMD cmd;
-    const char *text;
-    bool stopping;
-    bool has_value;
-} CMD_OPTS_t;
-
-static const CMD_OPTS_t COMMANDS[] = {
-        { PRINT, "-print", false, false },
-        { LS,    "-ls", false, false },
-        { USER,  "-user", true, true },
-        { NAME,  "-name", true, true },
-        { TYPE,  "-type", true, true },
-        { NOUSER,"-nouser", true, false },
-        { PATH,  "-path", true, true }
-};
-
+const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path" };
 ////// FUNCTIONS TODO: Sort functions by call-order!
 
 int main(int argc, const char *argv[]) {
@@ -86,7 +71,7 @@ int main(int argc, const char *argv[]) {
     char *targetpath = realpath(argv[1], NULL); // TODO: Memoryleak on error! Better way?
     debug_print("DEBUG: targetpath = %s\n", targetpath);
 
-    //&argv[2] because "Anleitung" says so:
+    //&argv[2] because "Anleitung" says so ...
     //"parms ist dabei die Adresse des ersten Arguments (so wie beim argv), das
     // eine Aktion ist"
     do_file(targetpath, &argv[2]);
@@ -107,7 +92,8 @@ void do_dir(const char *dir_name, const char *const *parms) {
 
     DIR *dirp = opendir(dir_name);
     if (dirp != NULL) {
-        // readdir returns NULL && errno=0 on EOF, errno != 0 is not EOF!
+        // readdir returns (NULL && errno=0) on EOF,
+        // (NULL && errno != 0) is not EOF!
         while (((dp = readdir(dirp)) != NULL) || errno != 0) {
             if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) {
                 debug_print("DEBUG: skip '%s' '%s' (%d)\n", dir_name, dp->d_name, errno);
@@ -161,45 +147,79 @@ void do_file(const char *file_name, const char *const *parms) {
 }
 
 void do_params(const char *file_name, const char *const *parms) {
-    const char *command, *value;
+    const char *command, *value = "";
     int i = 0;
-    int result = 0;
-    bool stop = false;
+    bool printed = false;
 
     while((command = parms[i++]) != NULL) {
-        bool found = false;
-        for (size_t j = 0; j < sizeof(COMMANDS); j++) {
-            CMD_OPTS_t c = COMMANDS[j];
-            if(strcmp(c.text, command) != 0)
+        enum OPT opt = UNKNOWN;
+        for (size_t j = 0; j < sizeof(OPTS) && opt == UNKNOWN; j++) {
+            if (strcmp(OPTS[j], command) != 0)
                 continue;
-
-            found = true;
-
-            if(c.has_value){
-                if((value = parms[i++]) == NULL) {
-                    error(6, 0, "missing value on '%s'", command);
-                    return;
-                }
-            } else {
-                value = "";
-            }
-            switch(c.cmd){
-                case PRINT: result = do_print(file_name); break;
-                case LS:    result = do_list(file_name); break;
-                case USER:  result = do_user(file_name, value); break;
-                case NAME:  result = do_name(file_name, value); break;
-                case TYPE:  result = do_type(file_name, value); break;
-                case NOUSER:result = do_nouser(file_name); break;
-                case PATH:  result = do_path(file_name, value); break;
-            }
-            if(!result && c.stopping)
-                stop = true;
+            opt = (enum OPT)j;
         }
-        if(stop) break;
-        if(!found)
+
+        if(opt == UNKNOWN) {
             error(4, 0, "invalid argument '%s'", command);
+            return;
+        }
+
+        if(opt == PRINT) {
+            do_print(file_name);
+            printed = true;
+            continue;
+        }
+
+        if(opt == LS) {
+            do_list(file_name);
+            printed = true;
+            continue;
+        }
+
+        if(opt == NOUSER) {
+            if(do_nouser(file_name))
+                continue;
+            printed = true;
+            break;
+        }
+
+        if((value = parms[i++]) == NULL) {
+            error(6, 0, "missing value on '%s'", command);
+            return;
+        }
+
+        if(opt == USER) {
+            if(do_user(file_name, value))
+                continue;
+            printed = true;
+            break;
+        }
+
+        if(opt == TYPE) {
+            if(do_type(file_name, value))
+                continue;
+            printed = true;
+            break;
+        }
+
+        if(opt == NAME) {
+            if(do_name(file_name, value))
+                continue;
+            printed = true;
+            break;
+        }
+
+        if(opt == PATH) {
+            if(do_path(file_name, value))
+                continue;
+            printed = true;
+            break;
+        }
+
+        error(100, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", command);
     }
-    if(parms[i-2] == NULL || (!stop && strcmp(parms[i-2], "-print") && strcmp(parms[i-2], "-ls"))) //TODO: unhack it
+
+    if(!printed)
         do_print(file_name);
 }
 
