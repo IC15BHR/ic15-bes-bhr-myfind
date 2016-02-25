@@ -10,8 +10,6 @@
 #include <stdbool.h>
 #include <error.h>
 #include <errno.h>
-#include <limits.h>
-#include <unistd.h>
 #include <fnmatch.h>
 
 ////// DEFINES
@@ -36,7 +34,7 @@ void do_help(void);
 
 void do_params(const char *name, const char *const *parms);
 
-void sprintf_permissions(const struct stat *fileStat, char *bufp);
+void sprintf_permissions(char *buf, int mode);
 
 int do_user(const char *file_name, const char *value);
 int do_type(const char *file_name, const char *value);
@@ -76,7 +74,6 @@ static const CMD_OPTS_t COMMANDS[] = {
         { NOUSER,"-nouser", true, false },
         { PATH,  "-path", true, true }
 };
-#define COMMANDS_COUNT 7
 
 ////// FUNCTIONS TODO: Sort functions by call-order!
 
@@ -171,10 +168,11 @@ void do_params(const char *file_name, const char *const *parms) {
 
     while((command = parms[i++]) != NULL) {
         bool found = false;
-        for (size_t j = 0; j < COMMANDS_COUNT; j++) {
+        for (size_t j = 0; j < sizeof(COMMANDS); j++) {
             CMD_OPTS_t c = COMMANDS[j];
             if(strcmp(c.text, command) != 0)
                 continue;
+
             found = true;
 
             if(c.has_value){
@@ -201,7 +199,7 @@ void do_params(const char *file_name, const char *const *parms) {
         if(!found)
             error(4, 0, "invalid argument '%s'", command);
     }
-    if(parms[i-1] == NULL || (!stop && strcmp(parms[i-1], "-print") && strcmp(parms[i-1], "-ls"))) //TODO: unhack it
+    if(parms[i-2] == NULL || (!stop && strcmp(parms[i-2], "-print") && strcmp(parms[i-2], "-ls"))) //TODO: unhack it
         do_print(file_name);
 }
 
@@ -215,35 +213,37 @@ int do_nouser(const char *file_name) {
 int do_type(const char *file_name, const char *value) {
     struct stat s;
     mode_t mask = 0;
+    if(strlen(value) != 1) {
+        error(32, 0, "invalid type value '%s'", value);
+        return false;
+    }
 
     lstat(file_name, &s);
-    for (size_t i = 0; i < strlen(value); i++) {
-        switch (value[i]) {
-        case 'b':
-            mask = mask | S_IFBLK;
-            break;
-        case 'c':
-            mask = mask | S_IFCHR;
-            break;
-        case 'd':
-            mask = mask | S_IFDIR;
-            break;
-        case 'p':
-            mask = mask | S_IFREG; //TODO: Wrong!
-            break;
-        case 'f':
-            mask = mask | S_IFIFO;
-            break;
-        case 'l':
-            mask = mask | S_IFLNK;
-            break;
-        case 's':
-            mask = mask | S_IFSOCK;
-            break;
-        default:
-            error(18,0, "invalid flag on type '%c'", value[i]);
-            break;
-        }
+    switch (value[0]) {
+    case 'b':
+        mask = mask | S_IFBLK;
+        break;
+    case 'c':
+        mask = mask | S_IFCHR;
+        break;
+    case 'd':
+        mask = mask | S_IFDIR;
+        break;
+    case 'p':
+        mask = mask | S_IFIFO;
+        break;
+    case 'f':
+        mask = mask | S_IFREG;
+        break;
+    case 'l':
+        mask = mask | S_IFLNK;
+        break;
+    case 's':
+        mask = mask | S_IFSOCK;
+        break;
+    default:
+        error(18,0, "invalid flag on type '%c'", value[0]);
+        break;
     }
 
     return (s.st_mode & mask) == mask;
@@ -316,7 +316,10 @@ int do_print(const char *file_name) { return printf("%s\n", file_name); }
 int do_list(const char *file_name) {
     struct stat s;
 
-    lstat(file_name, &s);
+    if(lstat(file_name, &s) == -1) {
+        error(0, errno, "failed to read stat of '%s'", file_name);
+        return false;
+    }
 
     // Get Last Modified Time
     char timetext[80];
@@ -325,7 +328,7 @@ int do_list(const char *file_name) {
     // Get User Name
     char user_name[255]; // TODO: read buffer-size with sysconf()
     if(sprintf_username(user_name, s.st_uid) == 0)
-        error(0, errno, "Failed to get user from id '%d'", s.st_uid);
+        sprintf(user_name, "%d", s.st_uid);
 
     // Get Group Name
     char group_name[255]; // TODO: read buffer-size with sysconf()
@@ -333,11 +336,11 @@ int do_list(const char *file_name) {
 
     // Get Permissions
     char permissions[11];
-    sprintf_permissions(&s, permissions);
+    sprintf_permissions(permissions, s.st_mode);
 
-    printf("%8lu %8lu", s.st_ino, s.st_size);
+    printf("%lu %4lu", s.st_ino, s.st_blocks / 2); //stat calculates with 512bytes blocksize ... 1024 should be used
     printf(" %s ", permissions);
-    printf("%2lu %10s %10s %13s %s\n", s.st_nlink, user_name, group_name, timetext, file_name);
+    printf("%3lu %-8s %-8s %8lu %s %s\n", s.st_nlink, user_name, group_name, s.st_size, timetext, file_name);
 
     return true;
 }
@@ -379,17 +382,44 @@ size_t sprintf_groupname(char *buf, gid_t gid) {
     }
 }
 
-void sprintf_permissions(const struct stat *fileStat, char *bufp) {
-    sprintf(bufp++, (S_ISDIR(fileStat->st_mode)) ? "d" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IRUSR) ? "r" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IWUSR) ? "w" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IXUSR) ? "x" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IRGRP) ? "r" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IWGRP) ? "w" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IXGRP) ? "x" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IROTH) ? "r" : "-");
-    sprintf(bufp++, (fileStat->st_mode & S_IWOTH) ? "w" : "-");
-    sprintf(bufp, (fileStat->st_mode & S_IXOTH) ? "x" : "-");
+void sprintf_permissions(char *buf, int mode) {
+    //TODO: Comment which is which
+    //TODO: Check buffer size!
+    //print node-type
+    if      (S_ISBLK (mode)){ sprintf(buf++, "%c", 'b'); }
+    else if (S_ISCHR (mode)){ sprintf(buf++, "%c", 'c'); }
+    else if (S_ISDIR (mode)){ sprintf(buf++, "%c", 'd'); }
+    else if (S_ISFIFO(mode)){ sprintf(buf++, "%c", 'p'); }
+    else if (S_ISLNK (mode)){ sprintf(buf++, "%c", 'l'); }
+    else if (S_ISSOCK(mode)){ sprintf(buf++, "%c", 's'); }
+    else                    { sprintf(buf++, "%c", '-'); }
+
+    //print access mask
+    sprintf(buf++, "%c", (mode & S_IRUSR) ? 'r' : '-');  //user   read
+    sprintf(buf++, "%c", (mode & S_IWUSR) ? 'w' : '-');  //user   write
+
+    if(mode & S_IXUSR){                                   //user   execute/sticky
+        sprintf(buf++, "%c", (mode & S_ISUID) ? 's' : 'x');
+    } else {
+        sprintf(buf++, "%c", (mode & S_ISUID) ? 'S' : '-');
+    }
+
+    sprintf(buf++, "%c", (mode & S_IRGRP) ? 'r' : '-');  //group  read
+    sprintf(buf++, "%c", (mode & S_IWGRP) ? 'w' : '-');  //group  write
+
+    if(mode & S_IXGRP){                                   //group  execute/sticky
+        sprintf(buf++, "%c", (mode & S_ISGID) ? 's' : 'x');
+    } else {
+        sprintf(buf++, "%c", (mode & S_ISGID) ? 'S' : '-');
+    }
+
+    sprintf(buf++, "%c", (mode & S_IROTH) ? 'r' : '-');  //other  read
+    sprintf(buf++, "%c", (mode & S_IWOTH) ? 'w' : '-');  //other  write
+    if(mode & S_IXOTH){                                   //other  execute/sticky
+        sprintf(buf++, "%c", (mode & S_ISVTX) ? 's' : 'x');
+    } else {
+        sprintf(buf++, "%c", (mode & S_ISVTX) ? 'S' : '-');
+    }
 }
 
 void do_help(void) {
