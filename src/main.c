@@ -171,6 +171,10 @@ void do_file(const char *file_name, const char *const *parms) {
  *
  * \func opendir() öffnet einen diretory stream um die elemente des directorys zu laden
  * \func readdir() liefert einen pointer zu einem "struct dirent" der den Eintrag beschreibt
+ * \func do_file()
+ * \func closedir() schließt den diretory stream wieder
+ *
+ * \return kein Return-Wert da "void"
  */
 void do_dir(const char *dir_name, const char *const *parms) {
     struct dirent *dp;
@@ -211,7 +215,25 @@ void do_dir(const char *dir_name, const char *const *parms) {
         errno = 0;
     }
 }
-
+/**
+ * do_params Funktion
+ * Diese Funktion überprüft die eigegebenen Parameter,
+ * geht diese in einer while-Schleife durch und führt bei
+ * treffer das jeweilige if-statement / Funktion aus.
+ *
+ * \param file_name
+ * \param params
+ *
+ * \func do_print()
+ * \func do_list()
+ * \func do_nouser()
+ * \func do_user()
+ * \func do_type()
+ * \func do_name()
+ * \func do_path()
+ *
+ * \return kein Return-Wert da "void"
+ */
 void do_params(const char *file_name, const char *const *parms) {
     const char *command, *value = "";
     int i = 0;
