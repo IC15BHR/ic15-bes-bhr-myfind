@@ -224,7 +224,7 @@ void do_dir(const char *dir_name, const char *const *parms) {
  * \param file_name
  * \param params
  *
- * \func do_print()
+ * \func do_print() print
  * \func do_list()
  * \func do_nouser()
  * \func do_user()
