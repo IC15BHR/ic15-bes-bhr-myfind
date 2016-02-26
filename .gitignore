@@ -2,4 +2,5 @@
 output/*
 test/*
 !/test/bic-myfind
+/doc
 !/test/*.sh
