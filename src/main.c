@@ -36,8 +36,10 @@
  * -------------------------------------------------------------- defines --
  */
 #define ARG_MIN 2
-#define DEBUG 0
 
+#ifndef DEBUG
+#define DEBUG 0
+#endif
 /*
  * -------------------------------------------------------------- macros --
  */
@@ -394,7 +396,7 @@ int do_user(const char *value, struct stat s) {
 
     pass = getpwnam(value);
     if (pass == NULL) {
-        uid = strtol(value, &tmp, 0);
+        uid = strtoul(value, &tmp, 0);
 
         if (*tmp != '\0') {
             error(1, errno, "Can't find user '%s'", value);
@@ -446,7 +448,7 @@ int do_list(const char *file_name, struct stat s) {
 
     printf("%lu %4lu", s.st_ino, s.st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
     printf(" %s ", permissions);
-    printf("%3d %-8s %-8s %8lu %s %s\n", s.st_nlink, user_name, group_name, s.st_size, timetext, file_name);
+    printf("%3d %-8s %-8s %8lu %s %s\n", (int)s.st_nlink, user_name, group_name, s.st_size, timetext, file_name);
 
     return true;
 }

@@ -1,4 +1,4 @@
-CC=gcc52
+CC=gcc
 CFLAGS=-DDEBUG -Wall -pedantic -Werror -Wextra -Wstrict-prototypes -fno-common -g -O3 -std=gnu11
 CP=cp
 CD=cd
@@ -6,24 +6,22 @@ MV=mv
 GREP=grep
 DOXYGEN=doxygen
 
-OBJECTS=src/main.o
-
-EXCLUDE_PATTERN=footrulewidth
+OBJECTS=output/main.o
 
 ##
 ## ----------------------------------------------------------------- rules --
 ##
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c $<
+output/%.o: src/%.c
+	$(CC) $(CFLAGS) -o $@ -c $<
 
 ##
 ## --------------------------------------------------------------- targets --
 ##
 
-all: myfind
+all: output/myfind
 
-hello: $(OBJECTS)
+output/myfind: $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
