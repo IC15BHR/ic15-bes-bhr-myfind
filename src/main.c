@@ -57,7 +57,7 @@ void do_file(const char *file_name, const char *const *parms);
 void do_dir(const char *dir_name, const char *const *parms);
 
 int do_print(const char *file_name);
-int do_list(const char *file_name);
+int do_list(const char *file_name, struct stat s);
 
 void do_help(void);
 
@@ -65,11 +65,11 @@ void do_params(const char *name, const char *const *parms);
 
 void sprintf_permissions(char *buf, int mode);
 
-int do_user(const char *file_name, const char *value);
-int do_type(const char *file_name, const char *value);
-int do_name(const char *file_name, const char *value);
-int do_nouser(const char *file_name);
-int do_path(const char *file_name, const char *value);
+int do_user(const char *value, struct stat s);
+int do_type(const char *value, struct stat s);
+int do_name(const char *file_name, const char *value, struct stat s);
+int do_nouser(struct stat s);
+int do_path(const char *file_name, const char *value, struct stat s);
 
 size_t sprintf_username(char *buf, uid_t uid);
 size_t sprintf_groupname(char *buf, gid_t gid);
@@ -120,8 +120,7 @@ int main(int argc, const char *argv[]) {
  * do_file Funktion
  * Diese Funktion überprüft ob es sich um ein File oder um ein Directory handelt
  *
- * \param file_name ist der absolute/relative Pfard
- * TODO: Absolut oder relativ?
+ * \param file_name ist der relative Pfard
  * \param params übernimmt das dritte Argument [2]
  *
  * \func do_params() wird aufgerufen um die Paramenter auszulesen.
@@ -233,6 +232,8 @@ void do_params(const char *file_name, const char *const *parms) {
     const char *command, *value = "";
     int i = 0;
     bool printed = false;
+    struct stat s;
+    int rets = 0;
 
     while ((command = parms[i++]) != NULL) {
         enum OPT opt = UNKNOWN;
@@ -242,9 +243,19 @@ void do_params(const char *file_name, const char *const *parms) {
             opt = (enum OPT)j;
         }
 
+
         if (opt == UNKNOWN) {
             error(4, 0, "invalid argument '%s'", command);
             return;
+        }
+
+        //print, ls, nouser can't have a value
+        if(opt == PRINT || opt == LS || opt == NOUSER) {
+            if(parms[i] != NULL && parms[i][0] != '-') {
+                error(6, 0, "missing value on '%s'", command);
+                printed = true;
+                break;
+            }
         }
 
         if (opt == PRINT) {
@@ -253,47 +264,58 @@ void do_params(const char *file_name, const char *const *parms) {
             continue;
         }
 
+        //only run on first hit and not for print
+        if (rets == 0 && (rets = lstat(file_name, &s)) == -1) {
+            error(0, errno, "failed to read stat of '%s'", file_name);
+            printed = true;
+            break;
+        }
+
         if (opt == LS) {
-            do_list(file_name);
+            do_list(file_name, s);
             printed = true;
             continue;
         }
 
         if (opt == NOUSER) {
-            if (do_nouser(file_name))
+            if (do_nouser(s))
                 continue;
             printed = true;
             break;
         }
 
+        //check for value and invalid (if present) next argument
         if ((value = parms[i++]) == NULL) {
             error(6, 0, "missing value on '%s'", command);
+            return;
+        } else if(parms[i] != NULL && parms[i][0] != '-') {
+            error(7, 0, "invalid arg '%s'", parms[i]);
             return;
         }
 
         if (opt == USER) {
-            if (do_user(file_name, value))
+            if (do_user(value, s))
                 continue;
             printed = true;
             break;
         }
 
         if (opt == TYPE) {
-            if (do_type(file_name, value))
+            if (do_type(value, s))
                 continue;
             printed = true;
             break;
         }
 
         if (opt == NAME) {
-            if (do_name(file_name, value))
+            if (do_name(file_name, value, s))
                 continue;
             printed = true;
             break;
         }
 
         if (opt == PATH) {
-            if (do_path(file_name, value))
+            if (do_path(file_name, value, s))
                 continue;
             printed = true;
             break;
@@ -306,43 +328,38 @@ void do_params(const char *file_name, const char *const *parms) {
         do_print(file_name);
 }
 
-int do_nouser(const char *file_name) {
-    struct stat s;
-
-    lstat(file_name, &s);
+int do_nouser(struct stat s) {
     return sprintf_username(NULL, s.st_uid) == 0;
 }
 
-int do_type(const char *file_name, const char *value) {
-    struct stat s;
+int do_type(const char *value, struct stat s) {
     mode_t mask = 0;
     if (strlen(value) != 1) {
         error(32, 0, "invalid type value '%s'", value);
         return false;
     }
 
-    lstat(file_name, &s);
     switch (value[0]) {
     case 'b':
-        mask = mask | S_IFBLK;
+        mask = S_IFBLK;
         break;
     case 'c':
-        mask = mask | S_IFCHR;
+        mask = S_IFCHR;
         break;
     case 'd':
-        mask = mask | S_IFDIR;
+        mask = S_IFDIR;
         break;
     case 'p':
-        mask = mask | S_IFIFO;
+        mask = S_IFIFO;
         break;
     case 'f':
-        mask = mask | S_IFREG;
+        mask = S_IFREG;
         break;
     case 'l':
-        mask = mask | S_IFLNK;
+        mask = S_IFLNK;
         break;
     case 's':
-        mask = mask | S_IFSOCK;
+        mask = S_IFSOCK;
         break;
     default:
         error(18, 0, "invalid flag on type '%c'", value[0]);
@@ -352,11 +369,9 @@ int do_type(const char *file_name, const char *value) {
     return (s.st_mode & mask) == mask;
 }
 
-int do_name(const char *file_name, const char *value) {
-    struct stat s;
+int do_name(const char *file_name, const char *value, struct stat s) {
     int result = 0;
 
-    lstat(file_name, &s);
     if (S_ISDIR(s.st_mode))
         return false;
 
@@ -372,13 +387,10 @@ int do_name(const char *file_name, const char *value) {
     return false;
 }
 
-int do_user(const char *file_name, const char *value) {
-    struct stat s;
+int do_user(const char *value, struct stat s) {
     struct passwd *pass;
     char *tmp;
     long uid;
-
-    lstat(file_name, &s);
 
     pass = getpwnam(value);
     if (pass == NULL) {
@@ -394,11 +406,9 @@ int do_user(const char *file_name, const char *value) {
     return uid == s.st_uid;
 }
 
-int do_path(const char *file_name, const char *value) {
-    struct stat s;
+int do_path(const char *file_name, const char *value, struct stat s) {
     int result = 0;
 
-    lstat(file_name, &s);
     if (S_ISDIR(s.st_mode))
         return false;
 
@@ -416,14 +426,7 @@ int do_path(const char *file_name, const char *value) {
 
 int do_print(const char *file_name) { return printf("%s\n", file_name); }
 
-int do_list(const char *file_name) {
-    struct stat s;
-
-    if (lstat(file_name, &s) == -1) {
-        error(0, errno, "failed to read stat of '%s'", file_name);
-        return false;
-    }
-
+int do_list(const char *file_name, struct stat s) {
     // Get Last Modified Time
     char timetext[80];
     sprintf_filetime(timetext, &(s.st_mtim.tv_sec));
