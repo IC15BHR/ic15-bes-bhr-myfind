@@ -3,4 +3,6 @@ output/*
 test/*
 !/test/bic-myfind
 /doc
+/main.o
+/myfind
 !/test/*.sh

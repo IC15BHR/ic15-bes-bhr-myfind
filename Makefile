@@ -6,26 +6,26 @@ MV=mv
 GREP=grep
 DOXYGEN=doxygen
 
-OBJECTS=output/main.o
+OBJECTS=main.o
 
 ##
 ## ----------------------------------------------------------------- rules --
 ##
 
-output/%.o: src/%.c
+%.o: src/%.c
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 ##
 ## --------------------------------------------------------------- targets --
 ##
 
-all: output/myfind
+all: myfind
 
-output/myfind: $(OBJECTS)
+myfind: $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^
 
 clean:
-	$(RM) output/*/*.o output/*/*~ output/*/myfind
+	$(RM) *.o *~ myfind
 
 distclean: clean
 	$(RM) -r doc
