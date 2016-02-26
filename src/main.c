@@ -390,7 +390,7 @@ int do_name(const char *file_name, const char *value, struct stat s) {
 int do_user(const char *value, struct stat s) {
     struct passwd *pass;
     char *tmp;
-    long uid;
+    unsigned long uid;
 
     pass = getpwnam(value);
     if (pass == NULL) {
@@ -446,7 +446,7 @@ int do_list(const char *file_name, struct stat s) {
 
     printf("%lu %4lu", s.st_ino, s.st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
     printf(" %s ", permissions);
-    printf("%3lu %-8s %-8s %8lu %s %s\n", s.st_nlink, user_name, group_name, s.st_size, timetext, file_name);
+    printf("%3d %-8s %-8s %8lu %s %s\n", s.st_nlink, user_name, group_name, s.st_size, timetext, file_name);
 
     return true;
 }
