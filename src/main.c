@@ -110,15 +110,10 @@ int main(int argc, const char *argv[]) {
         error(1, 0, "Too few arguments given!"); // TODO: maybe errorcode available?
     }
 
-    char *targetpath = realpath(argv[1], NULL); // TODO: Memoryleak on error! Better way?
-    debug_print("DEBUG: targetpath = %s\n", targetpath);
-
     //&argv[2] because "Anleitung" says so ...
     //"parms ist dabei die Adresse des ersten Arguments (so wie beim argv), das
     // eine Aktion ist"
-    do_file(targetpath, &argv[2]);
-
-    free(targetpath);
+    do_file(argv[1], &argv[2]);
     return 0;
 }
 /**
