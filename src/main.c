@@ -9,7 +9,7 @@
  *
  * @date 2015/02/25
  *
- * @version 1
+ * @version 2
  *
  * @todo comments
  * @todo error handling
@@ -89,16 +89,17 @@ const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-no
 
 /**
  * Main Funktion
- * Dieses Programm ließt die Nutzereingaben:
+ * Dieses Programm liest die Nutzereingaben:
  * -ls, -user, -name, -type, -nouser, -path
  * aus.
  * Es arbeitet dabei wie das "find" programm von Linux.
  *
- * \param argc ist die Anzahl der Argumente
- * \param argv ist das Argument selbst
+ * \param argc ist die Anzahl der Argumente welche übergeben werden.
+ * \param argv ist das Argument selbst.
  *
- * \func do_help() wird aufgerufen wenn zuwenig Argumente übergeben werden
- * \func do_file() wird aufgerufen wenn eine richtige Anzahl an Argumenten übergeben wurde
+ * \func do_help() wird aufgerufen, wenn zu wenig Argumente übergeben werden.
+ * \func do_file() wird aufgerufen, wenn eine richtige Anzahl an Argumenten übergeben wurde.
+ * \func free() gibt den, für das Programm angelegten Speicher, wieder frei.
  *
  * \return always "success"
  * \return 0 always
@@ -123,16 +124,16 @@ int main(int argc, const char *argv[]) {
 }
 /**
  * do_file Funktion
- * Diese Funktion überprüft ob es sich um ein file oder um ein directory handelt
- * und gibt die parameter aus. Handelt es sich um ein directory, wird in die Funktion
- * do_dir gesprungen.
+ * Diese Funktion überprüft ob es sich um ein directory handelt oder nicht.
+ * Handelt es sich um ein directory, wird in die Funktion do_dir gesprungen.
+ * Handelt es sich um kein directory, wird mit einer Fehlermeldung das Programm beendet.
  *
  * \param file_name ist der absolute/relative Pfard
  * TODO: Absolut oder relativ?
  * \param params übernimmt das dritte Argument [2]
  *
  * \func lstat() ließt die file-Attribute aus und speichert sie in BUF
- * \func do_params() wird aufgerufen um die Paramenter auszulesen.
+ * \func do_params() wird aufgerufen um die Parameter auszulesen.
  * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt
  *
  * \return kein Return-Wert da "void"
@@ -166,7 +167,7 @@ void do_file(const char *file_name, const char *const *parms) {
 /**
  * do_dir Funktion
  * Diese Funktion überprüft ob es sich bei dem angegebenen Argument um ein directory
- * oder um ein file handelt.
+ * oder um ein File handelt.
  * Handelt es sich um ein File, wird in die Funktion do_file() gesprungen.
  *
  * \param dir_name
@@ -174,7 +175,7 @@ void do_file(const char *file_name, const char *const *parms) {
  *
  * \func opendir() öffnet einen diretory stream um die elemente des directorys zu laden
  * \func readdir() liefert einen pointer zu einem "struct dirent" der den Eintrag beschreibt
- * \func do_file()
+ * \func do_file() springt zurück (rekussive Aufruf) in die do_file Funktion.
  * \func closedir() schließt den diretory stream wieder
  *
  * \return kein Return-Wert da "void"
@@ -221,14 +222,14 @@ void do_dir(const char *dir_name, const char *const *parms) {
 /**
  * do_params Funktion
  * Diese Funktion überprüft die eigegebenen Parameter,
- * geht diese in einer while-Schleife durch und führt bei
- * Treffer das jeweilige if-statement / Funktion aus.
+ * geht diese in einer While-Schleife durch und führt bei
+ * Treffer das jeweilige If-Statement / Funktion aus.
  *
  * \param file_name
  * \param params
  *
- * \func do_print() print
- * \func do_list()
+ * \func do_print() gibt den Filenamen auf der Konsole aus.
+ * \func do_list() gibt username, groupname und permissions aus.
  * \func do_nouser()
  * \func do_user()
  * \func do_type()
@@ -421,7 +422,17 @@ int do_path(const char *file_name, const char *value) {
     return false;
     return true;
 }
-
+/**
+ * do_print Funktion
+ * Diese Funktion gibt den Namen des Files zurück
+ *
+ * \param file_name
+ *
+ * \func printf()
+ *
+ * \return int ohne Return?
+ * TODO: Return value?
+ */
 int do_print(const char *file_name) { return printf("%s\n", file_name); }
 
 int do_list(const char *file_name) {
