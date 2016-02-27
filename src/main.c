@@ -134,9 +134,9 @@ int main(int argc, const char *argv[]) {
  *
  * \func lstat() ließt die file-Attribute aus und speichert sie in BUF
  * \func do_params() wird aufgerufen um die Parameter auszulesen.
- * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt
+ * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt.
  *
- * \return kein Return-Wert da "void"
+ * \return kein Return-Wert da "void".
  */
 void do_file(const char *file_name, const char *const *parms) {
     int result = 0;
@@ -173,12 +173,12 @@ void do_file(const char *file_name, const char *const *parms) {
  * \param dir_name
  * \param params
  *
- * \func opendir() öffnet einen diretory stream um die elemente des directorys zu laden
- * \func readdir() liefert einen pointer zu einem "struct dirent" der den Eintrag beschreibt
+ * \func opendir() öffnet einen diretory stream um die elemente des directorys zu laden.
+ * \func readdir() liefert einen pointer zu einem "struct dirent" der den Eintrag beschreibt.
  * \func do_file() springt zurück (rekussive Aufruf) in die do_file Funktion.
- * \func closedir() schließt den diretory stream wieder
+ * \func closedir() schließt den diretory stream wieder.
  *
- * \return kein Return-Wert da "void"
+ * \return kein Return-Wert da "void".
  */
 void do_dir(const char *dir_name, const char *const *parms) {
     struct dirent *dp;
@@ -424,7 +424,7 @@ int do_path(const char *file_name, const char *value) {
 }
 /**
  * do_print Funktion
- * Diese Funktion gibt den Namen des Files zurück
+ * Diese Funktion gibt den Namen des Files zurück.
  *
  * \param file_name
  *
