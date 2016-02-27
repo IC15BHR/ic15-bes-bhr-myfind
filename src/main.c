@@ -1,5 +1,5 @@
 /**
- * @file my_find.c
+ * @file main.c
  * Betriebssysteme my_find file
  * Beispiel 1
  *
@@ -123,12 +123,15 @@ int main(int argc, const char *argv[]) {
 }
 /**
  * do_file Funktion
- * Diese Funktion überprüft ob es sich um ein File oder um ein Directory handelt
+ * Diese Funktion überprüft ob es sich um ein file oder um ein directory handelt
+ * und gibt die parameter aus. Handelt es sich um ein directory, wird in die Funktion
+ * do_dir gesprungen.
  *
  * \param file_name ist der absolute/relative Pfard
  * TODO: Absolut oder relativ?
  * \param params übernimmt das dritte Argument [2]
  *
+ * \func lstat() ließt die file-Attribute aus und speichert sie in BUF
  * \func do_params() wird aufgerufen um die Paramenter auszulesen.
  * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt
  *
@@ -219,7 +222,7 @@ void do_dir(const char *dir_name, const char *const *parms) {
  * do_params Funktion
  * Diese Funktion überprüft die eigegebenen Parameter,
  * geht diese in einer while-Schleife durch und führt bei
- * treffer das jeweilige if-statement / Funktion aus.
+ * Treffer das jeweilige if-statement / Funktion aus.
  *
  * \param file_name
  * \param params
