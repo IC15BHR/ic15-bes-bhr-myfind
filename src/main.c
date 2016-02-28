@@ -9,9 +9,8 @@
  *
  * @date 2015/02/25
  *
- * @version 2
+ * @version 1
  *
- * @todo comments
  * @todo error handling
  */
 
@@ -71,7 +70,7 @@ const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-no
  */
 
 /**
- * Main Funktion
+ * main Funktion
  * Dieses Programm liest die Nutzereingaben:
  * -ls, -user, -name, -type, -nouser, -path
  * aus.
@@ -86,7 +85,6 @@ const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-no
  *
  * \return always "success"
  * \return 0 always
- * TODO: beschreiben was die Funktion macht?
  */
 int main(int argc, const char *argv[]) {
     if (argc < ARG_MIN) {
@@ -102,7 +100,12 @@ int main(int argc, const char *argv[]) {
 }
 
 /**
- * //TODO: Comment
+ * do_help Funktion
+ * Diese Funktion wird aufgerufen, wenn der User zu wenig Argumente übergibt.
+ *
+ * \param 'void' Es werden keine Paramenter übergeben.
+ *
+ * \return kein Return-Wert da "void".
  */
 void do_help(void) {
     printf("Usage: find <dir> <expressions>\n\nExpressions:"
@@ -223,12 +226,7 @@ void do_dir(const char *dir_name, const char *const *parms) {
  *
  * \func do_print() gibt den Filenamen auf der Konsole aus.
  * \func do_list() gibt username, groupname und permissions aus.
- * \func do_nouser()
- * \func do_user()
- * \func do_type()
- * \func do_name()
- * \func do_path()
- *
+
  * \return kein Return-Wert da "void"
  */
 void do_params(const char *file_name, const char *const *parms) {
@@ -279,7 +277,6 @@ void do_params(const char *file_name, const char *const *parms) {
  *
  * \func printf()
  *
- * \return int ohne Return?
- * TODO: Return value?
+ * \return Anzahl der charakter
  */
 int do_print(const char *file_name) { return printf("%s\n", file_name); }
