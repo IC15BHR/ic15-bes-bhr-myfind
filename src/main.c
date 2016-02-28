@@ -20,17 +20,20 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
-#include <dirent.h>
-#include <string.h>
-#include <sys/stat.h>
-#include <time.h>
-#include <pwd.h>
-#include <grp.h>
-#include <libgen.h>
 #include <stdbool.h>
-#include <error.h>
-#include <errno.h>
-#include <fnmatch.h>
+
+#include <string.h> //std string functions
+#include <error.h>  //errorhandling
+#include <errno.h>  //errorhandling
+
+#include <dirent.h>   //directory handling
+#include <sys/stat.h> //file stat functions
+
+#include <libgen.h>  //only for basename()
+#include <pwd.h>     //user handling
+#include <grp.h>     //group handling
+#include <time.h>    //for ls time output
+#include <fnmatch.h> //patternmatching
 
 /*
  * -------------------------------------------------------------- defines --
@@ -54,28 +57,29 @@
 /*
  * -------------------------------------------------------------- prototypes --
  */
-// TODO: Sort prototypes by call-order!
-void do_file(const char *file_name, const char *const *parms);
-void do_dir(const char *dir_name, const char *const *parms);
-
-int do_print(const char *file_name);
-int do_list(const char *file_name, struct stat s);
-
 void do_help(void);
 
+void do_file(const char *file_name, const char *const *parms);
+void do_dir(const char *dir_name, const char *const *parms);
 void do_params(const char *name, const char *const *parms);
 
+int do_print(const char *file_name);
+
+int do_list(const char *file_name, struct stat s);
 void sprintf_permissions(char *buf, int mode);
-
-int do_user(const char *value, struct stat s);
-int do_type(const char *value, struct stat s);
-int do_name(const char *file_name, const char *value, struct stat s);
-int do_nouser(struct stat s);
-int do_path(const char *file_name, const char *value, struct stat s);
-
 size_t sprintf_username(char *buf, uid_t uid);
 size_t sprintf_groupname(char *buf, gid_t gid);
 size_t sprintf_filetime(char *buf, const time_t *time);
+
+int do_nouser(struct stat s);
+
+int do_user(const char *value, struct stat s);
+
+int do_type(const char *value, struct stat s);
+
+int do_name(const char *file_name, const char *value, struct stat s);
+
+int do_path(const char *file_name, const char *value, struct stat s);
 
 /*
  * -------------------------------------------------------------- constants --
@@ -87,7 +91,6 @@ const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-no
 /*
  * -------------------------------------------------------------- functions --
  */
-// TODO: Sort functions by call-order!
 
 /**
  * Main Funktion
@@ -119,6 +122,21 @@ int main(int argc, const char *argv[]) {
     do_file(argv[1], &argv[2]);
     return 0;
 }
+
+/**
+ * //TODO: Comment
+ */
+void do_help(void) {
+    printf("Usage: find <dir> <expressions>\n\nExpressions:"
+           "  -print              returns formatted list\n"
+           "  -ls                 returns formatted list\n"
+           "  -user   <name/uid>  file-owners filter\n"
+           "  -name   <pattern>   file-name filter\n"
+           "  -type   [bcdpfls]   node-type filter\n"
+           "  -nouser             filter nonexisting owners\n"
+           "  -path   <pattern>   path filter\n");
+}
+
 /**
  * do_file Funktion
  * Diese Funktion überprüft ob es sich um ein directory handelt oder nicht.
@@ -215,6 +233,7 @@ void do_dir(const char *dir_name, const char *const *parms) {
         errno = 0;
     }
 }
+
 /**
  * do_params Funktion
  * Diese Funktion überprüft die eigegebenen Parameter,
@@ -249,15 +268,14 @@ void do_params(const char *file_name, const char *const *parms) {
             opt = (enum OPT)j;
         }
 
-
         if (opt == UNKNOWN) {
             error(4, 0, "invalid argument '%s'", command);
             return;
         }
 
-        //print, ls, nouser can't have a value
-        if(opt == PRINT || opt == LS || opt == NOUSER) {
-            if(parms[i] != NULL && parms[i][0] != '-') {
+        // print, ls, nouser can't have a value
+        if (opt == PRINT || opt == LS || opt == NOUSER) {
+            if (parms[i] != NULL && parms[i][0] != '-') {
                 error(6, 0, "missing value on '%s'", command);
                 printed = true;
                 break;
@@ -270,7 +288,7 @@ void do_params(const char *file_name, const char *const *parms) {
             continue;
         }
 
-        //only run on first hit and not for print
+        // only run on first hit and not for print
         if (rets == 0 && (rets = lstat(file_name, &s)) == -1) {
             error(0, errno, "failed to read stat of '%s'", file_name);
             printed = true;
@@ -290,11 +308,11 @@ void do_params(const char *file_name, const char *const *parms) {
             break;
         }
 
-        //check for value and invalid (if present) next argument
+        // check for value and invalid (if present) next argument
         if ((value = parms[i++]) == NULL) {
             error(6, 0, "missing value on '%s'", command);
             return;
-        } else if(parms[i] != NULL && parms[i][0] != '-') {
+        } else if (parms[i] != NULL && parms[i][0] != '-') {
             error(7, 0, "invalid arg '%s'", parms[i]);
             return;
         }
@@ -334,101 +352,6 @@ void do_params(const char *file_name, const char *const *parms) {
         do_print(file_name);
 }
 
-int do_nouser(struct stat s) {
-    return sprintf_username(NULL, s.st_uid) == 0;
-}
-
-int do_type(const char *value, struct stat s) {
-    mode_t mask = 0;
-    if (strlen(value) != 1) {
-        error(32, 0, "invalid type value '%s'", value);
-        return false;
-    }
-
-    switch (value[0]) {
-    case 'b':
-        mask = S_IFBLK;
-        break;
-    case 'c':
-        mask = S_IFCHR;
-        break;
-    case 'd':
-        mask = S_IFDIR;
-        break;
-    case 'p':
-        mask = S_IFIFO;
-        break;
-    case 'f':
-        mask = S_IFREG;
-        break;
-    case 'l':
-        mask = S_IFLNK;
-        break;
-    case 's':
-        mask = S_IFSOCK;
-        break;
-    default:
-        error(18, 0, "invalid flag on type '%c'", value[0]);
-        break;
-    }
-
-    return (s.st_mode & mask) == mask;
-}
-
-int do_name(const char *file_name, const char *value, struct stat s) {
-    int result = 0;
-
-    if (S_ISDIR(s.st_mode))
-        return false;
-
-    char *name = basename((char *)file_name);
-    result = fnmatch(value, name, 0);
-
-    if (result == 0)
-        return true;
-    else if (result == FNM_NOMATCH)
-        return false;
-
-    error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
-    return false;
-}
-
-int do_user(const char *value, struct stat s) {
-    struct passwd *pass;
-    char *tmp;
-    unsigned long uid;
-
-    pass = getpwnam(value);
-    if (pass == NULL) {
-        uid = strtoul(value, &tmp, 0);
-
-        if (*tmp != '\0') {
-            error(1, errno, "Can't find user '%s'", value);
-            return false;
-        }
-    } else {
-        uid = pass->pw_uid;
-    }
-    return uid == s.st_uid;
-}
-
-int do_path(const char *file_name, const char *value, struct stat s) {
-    int result = 0;
-
-    if (S_ISDIR(s.st_mode))
-        return false;
-
-    result = fnmatch(value, file_name, 0);
-
-    if (result == 0)
-        return true;
-    else if (result == FNM_NOMATCH)
-        return false;
-
-    error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
-    return false;
-    return true;
-}
 /**
  * do_print Funktion
  * Diese Funktion gibt den Namen des Files zurück.
@@ -471,7 +394,7 @@ size_t sprintf_filetime(char *buf, const time_t *time) {
     struct tm lt;
 
     localtime_r(time, &lt);
-    return strftime(buf, 80, "%b %d %H:%M", &lt);
+    return strftime(buf, sizeof(buf), "%b %d %H:%M", &lt);
 }
 
 size_t sprintf_username(char *buf, uid_t uid) {
@@ -552,13 +475,96 @@ void sprintf_permissions(char *buf, int mode) {
     }
 }
 
-void do_help(void) {
-    printf("Usage: find <dir> <expressions>\n\nExpressions:"
-           "  -print              returns formatted list\n"
-           "  -ls                 returns formatted list\n"
-           "  -user   <name/uid>  file-owners filter\n"
-           "  -name   <pattern>   file-name filter\n"
-           "  -type   [bcdpfls]   node-type filter\n"
-           "  -nouser             filter nonexisting owners\n"
-           "  -path   <pattern>   path filter\n");
+int do_nouser(struct stat s) { return sprintf_username(NULL, s.st_uid) == 0; }
+
+int do_user(const char *value, struct stat s) {
+    struct passwd *pass;
+    char *tmp;
+    unsigned long uid;
+
+    pass = getpwnam(value);
+    if (pass == NULL) {
+        uid = strtoul(value, &tmp, 0);
+
+        if (*tmp != '\0') {
+            error(1, errno, "Can't find user '%s'", value);
+            return false;
+        }
+    } else {
+        uid = pass->pw_uid;
+    }
+    return uid == s.st_uid;
+}
+
+int do_type(const char *value, struct stat s) {
+    mode_t mask = 0;
+    if (strlen(value) != 1) {
+        error(32, 0, "invalid type value '%s'", value);
+        return false;
+    }
+
+    switch (value[0]) {
+    case 'b':
+        mask = S_IFBLK;
+        break;
+    case 'c':
+        mask = S_IFCHR;
+        break;
+    case 'd':
+        mask = S_IFDIR;
+        break;
+    case 'p':
+        mask = S_IFIFO;
+        break;
+    case 'f':
+        mask = S_IFREG;
+        break;
+    case 'l':
+        mask = S_IFLNK;
+        break;
+    case 's':
+        mask = S_IFSOCK;
+        break;
+    default:
+        error(18, 0, "invalid flag on type '%c'", value[0]);
+        break;
+    }
+
+    return (s.st_mode & mask) == mask;
+}
+
+int do_name(const char *file_name, const char *value, struct stat s) {
+    int result = 0;
+
+    if (S_ISDIR(s.st_mode)) // TODO: Check if correct implemented?
+        return false;
+
+    char *name = basename((char *)file_name);
+    result = fnmatch(value, name, 0);
+
+    if (result == 0)
+        return true;
+    else if (result == FNM_NOMATCH)
+        return false;
+
+    error(23, errno, "Pattern '%s' failed on '%s'", value, file_name);
+    return false;
+}
+
+int do_path(const char *file_name, const char *value, struct stat s) {
+    int result = 0;
+
+    if (S_ISDIR(s.st_mode))
+        return false;
+
+    result = fnmatch(value, file_name, 0);
+
+    if (result == 0)
+        return true;
+    else if (result == FNM_NOMATCH)
+        return false;
+
+    error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
+    return false;
+    return true;
 }
