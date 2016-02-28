@@ -34,7 +34,7 @@
 #define ARG_MIN 2
 #define OPTS_COUNT 8
 
-#ifndef DEBUG
+#ifndef DEBUG   //to make -DDEBUG gcc flag possible
 #define DEBUG 0
 #endif
 /*
@@ -152,11 +152,12 @@ void do_file(const char *file_name, const char *const *parms) {
     if (result == -1) {
         error(0, errno, "can't get stat of '%s'", file_name);
         errno = 0;
-    } else if (S_ISDIR(status.st_mode)) {
-        do_params(file_name, parms);
+    }
+
+    do_params(file_name, parms);
+
+    if (S_ISDIR(status.st_mode)) {
         do_dir(file_name, parms);
-    } else {
-        do_params(file_name, parms);
     }
 }
 
@@ -237,7 +238,7 @@ void do_params(const char *file_name, const char *const *parms) {
 
     while ((command = parms[i++]) != NULL) {
         enum OPT opt = UNKNOWN;
-        for (size_t j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
+        for (int j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
             const char* copt = OPTS[j];
             if (copt != NULL || strcmp(copt, command) != 0)
                 continue;
