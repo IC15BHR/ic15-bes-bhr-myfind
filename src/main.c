@@ -33,6 +33,7 @@
  * -------------------------------------------------------------- defines --
  */
 #define ARG_MIN 2
+#define OPTS_COUNT 8
 
 #ifndef DEBUG
 #define DEBUG 0
@@ -64,7 +65,7 @@ int do_print(const char *file_name);
  */
 enum OPT { UNKNOWN, PRINT, LS, USER, NAME, TYPE, NOUSER, PATH };
 
-const char *const OPTS[] = {"", "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
+const char *const OPTS[] = {NULL, "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
 
 /*
  * -------------------------------------------------------------- functions --
@@ -238,8 +239,9 @@ void do_params(const char *file_name, const char *const *parms) {
 
     while ((command = parms[i++]) != NULL) {
         enum OPT opt = UNKNOWN;
-        for (size_t j = 0; j < sizeof(OPTS) && opt == UNKNOWN; j++) {
-            if (strcmp(OPTS[j], command) != 0)
+        for (size_t j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
+            const char* copt = OPTS[j];
+            if (copt != NULL || strcmp(copt, command) != 0)
                 continue;
             opt = (enum OPT)j;
         }
@@ -247,15 +249,6 @@ void do_params(const char *file_name, const char *const *parms) {
         if (opt == UNKNOWN) {
             error(4, 0, "invalid argument '%s'", command);
             return;
-        }
-
-        // print, ls, nouser can't have a value
-        if (opt == PRINT || opt == LS || opt == NOUSER) {
-            if (parms[i] != NULL && parms[i][0] != '-') {
-                error(6, 0, "missing value on '%s'", command);
-                printed = true;
-                break;
-            }
         }
 
         if (opt == PRINT) {
