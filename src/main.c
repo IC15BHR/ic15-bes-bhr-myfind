@@ -32,7 +32,7 @@
  * -------------------------------------------------------------- defines --
  */
 #define ARG_MIN 2
-#define OPTS_COUNT 8
+#define OPTS_COUNT sizeof(OPTS)/sizeof(OPTS[0])
 
 #ifndef DEBUG   //to make -DDEBUG gcc flag possible
 #define DEBUG 0
@@ -51,20 +51,20 @@
 /*
  * -------------------------------------------------------------- prototypes --
  */
-void do_help(void);
+static void do_help(void);
 
-void do_file(const char *file_name, const char *const *parms);
-void do_dir(const char *dir_name, const char *const *parms);
-void do_params(const char *name, const char *const *parms);
+static void do_file(const char *file_name, const char *const *parms);
+static void do_dir(const char *dir_name, const char *const *parms);
+static void do_params(const char *name, const char *const *parms);
 
-int do_print(const char *file_name);
+static int do_print(const char *file_name);
 
 /*
  * -------------------------------------------------------------- constants --
  */
 enum OPT { UNKNOWN, PRINT, LS, USER, NAME, TYPE, NOUSER, PATH };
 
-const char *const OPTS[] = {NULL, "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
+static const char *const OPTS[] = {NULL, "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
 
 /*
  * -------------------------------------------------------------- functions --
@@ -106,10 +106,9 @@ int main(int argc, const char *argv[]) {
  *
  * \param 'void' Es werden keine Paramenter übergeben.
  *
- * \return kein Return-Wert da "void".
  */
-void do_help(void) {
-    printf("Usage: find <dir> <expressions>\n\nExpressions:"
+static void do_help(void) {
+    printf("Usage: find <dir> <expressions>\n\nExpressions:\n"
            "  -print              returns formatted list\n"
            "  -ls                 returns formatted list\n"
            "  -user   <name/uid>  file-owners filter\n"
@@ -132,9 +131,8 @@ void do_help(void) {
  * \func do_params() wird aufgerufen um die Parameter auszulesen.
  * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt.
  *
- * \return kein Return-Wert da "void".
  */
-void do_file(const char *file_name, const char *const *parms) {
+static void do_file(const char *file_name, const char *const *parms) {
     int result = 0;
     struct stat status;
 
@@ -174,11 +172,10 @@ void do_file(const char *file_name, const char *const *parms) {
  * \func readdir() liefert einen pointer zu einem "struct dirent" der den Eintrag beschreibt.
  * \func do_file() springt zurück (rekussive Aufruf) in die do_file Funktion.
  * \func closedir() schließt den diretory stream wieder.
- *
- * \return kein Return-Wert da "void".
  */
-void do_dir(const char *dir_name, const char *const *parms) {
+static void do_dir(const char *dir_name, const char *const *parms) {
     struct dirent *dp;
+    size_t pathsize;
 
     if (dir_name == NULL) {
         debug_print("DEBUG: NULL dirname in do_dir%s", "\n");
@@ -197,8 +194,9 @@ void do_dir(const char *dir_name, const char *const *parms) {
                 continue;
             }
 
-            char path[PATH_MAX]; // TODO: Not standardized! - Malloc/Realloc?
-            snprintf(path, PATH_MAX, "%s/%s", dir_name, dp->d_name);
+            pathsize = strlen(dir_name) + strlen(dp->d_name) + 2; //lengths + '/' + \0
+            char path[pathsize];
+            snprintf(path, pathsize, "%s/%s", dir_name, dp->d_name);
 
             if (errno != 0) {
                 error(0, errno, "can't read dir '%s'", path);
@@ -210,7 +208,10 @@ void do_dir(const char *dir_name, const char *const *parms) {
             do_file(path, parms);
         }
 
-        closedir(dirp);
+        if(closedir(dirp) == -1) {
+            error(0, errno, "faild to close dir '%s'", dir_name);
+            errno = 0;
+        }
     } else {
         error(0, errno, "can't open dir '%s'", dir_name);
         errno = 0;
@@ -231,14 +232,14 @@ void do_dir(const char *dir_name, const char *const *parms) {
 
  * \return kein Return-Wert da "void"
  */
-void do_params(const char *file_name, const char *const *parms) {
+static void do_params(const char *file_name, const char *const *parms) {
     const char *command;
     int i = 0;
     bool printed = false;
 
     while ((command = parms[i++]) != NULL) {
         enum OPT opt = UNKNOWN;
-        for (int j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
+        for (size_t j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
             const char* copt = OPTS[j];
             if (copt != NULL || strcmp(copt, command) != 0)
                 continue;
@@ -273,4 +274,6 @@ void do_params(const char *file_name, const char *const *parms) {
  *
  * \return Anzahl der charakter
  */
-int do_print(const char *file_name) { return printf("%s\n", file_name); }
+static int do_print(const char *file_name) {
+    return printf("%s\n", file_name); //TODO: Error Handling?
+}
