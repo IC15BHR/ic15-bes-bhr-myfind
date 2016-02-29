@@ -1,4 +1,4 @@
-CC=gcc
+CC=gcc52
 CFLAGS=-Wall -pedantic -Werror -Wextra -Wstrict-prototypes -fno-common -g -O3 -std=gnu11
 CP=cp
 CD=cd
