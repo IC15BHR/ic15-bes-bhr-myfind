@@ -38,9 +38,9 @@
  * -------------------------------------------------------------- defines --
  */
 #define ARG_MIN 2
-#define OPTS_COUNT sizeof(OPTS)/sizeof(OPTS[0])
+#define OPTS_COUNT sizeof(OPTS) / sizeof(OPTS[0])
 
-#ifndef DEBUG   //to make -DDEBUG gcc flag possible
+#ifndef DEBUG // to make -DDEBUG gcc flag possible
 #define DEBUG 0
 #endif
 /*
@@ -51,6 +51,8 @@
         if (DEBUG)                                                                                                     \
             fprintf(stdout, fmt, __VA_ARGS__);                                                                         \
     } while (0)
+
+#define check_flags(mode, flags) (mode & flags) == flags
 /*
  * -------------------------------------------------------------- globals --
  */
@@ -66,7 +68,7 @@ static void do_params(const char *name, const char *const *parms, struct stat *s
 static int do_print(const char *file_name);
 
 static int do_list(const char *file_name, struct stat *s);
-static void sprintf_permissions(char *buf, int mode);
+static void snprintf_permissions(char *buf, size_t bufsize, int mode);
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid);
 static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid);
 static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time);
@@ -105,16 +107,24 @@ static const char *const OPTS[] = {NULL, "-print", "-ls", "-user", "-name", "-ty
  * \return always "success"
  * \return 0 always
  */
-int main(int argc, const char *argv[]) {
+int main(int argc, char *argv[]) {
     if (argc < ARG_MIN) {
         do_help();
         error(1, 0, "Too few arguments given!"); // TODO: maybe errorcode available?
     }
 
-    //&argv[2] because "Anleitung" says so ...
-    //"parms ist dabei die Adresse des ersten Arguments (so wie beim argv), das
-    // eine Aktion ist"
-    do_file(argv[1], &argv[2]);
+    // remove tailing slash if present
+    size_t len = strlen(argv[1]) - 1;
+    if (argv[1][len] == '/') {
+        argv[1][len] = '\0';
+    }
+
+    // copy args to const parms starting with 2 (as defined in spec)
+    const char *parms[argc - 1];
+    for (int i = 2; i <= argc; i++)
+        parms[i - 2] = argv[i];
+
+    do_file(argv[1], parms);
     return 0;
 }
 
@@ -212,7 +222,7 @@ static void do_dir(const char *dir_name, const char *const *parms) {
                 continue;
             }
 
-            pathsize = strlen(dir_name) + strlen(dp->d_name) + 2; //lengths + '/' + \0
+            pathsize = strlen(dir_name) + strlen(dp->d_name) + 2; // lengths + '/' + \0
             char path[pathsize];
             snprintf(path, pathsize, "%s/%s", dir_name, dp->d_name);
 
@@ -226,7 +236,7 @@ static void do_dir(const char *dir_name, const char *const *parms) {
             do_file(path, parms);
         }
 
-        if(closedir(dirp) == -1) {
+        if (closedir(dirp) == -1) {
             error(0, errno, "faild to close dir '%s'", dir_name);
             errno = 0;
         }
@@ -258,74 +268,66 @@ static void do_params(const char *file_name, const char *const *parms, struct st
     while ((command = parms[i++]) != NULL) {
         enum OPT opt = UNKNOWN;
         for (size_t j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
-            const char* copt = OPTS[j];
+            const char *copt = OPTS[j];
             if (copt == NULL || strcmp(copt, command) != 0)
                 continue;
             debug_print("DEBUG: found arg '%s' as OPT:'%lu'\n", command, j);
             opt = (enum OPT)j;
         }
 
-        switch(opt){
-            case UNKNOWN:
-                error(4, 0, "invalid argument '%s'", command);
-                return;
-            case PRINT:
-            case LS:
-            case NOUSER:
-                has_value = false;
-                break;
-            default:
-                has_value = true;
-                break;
+        switch (opt) {
+        case UNKNOWN:
+            error(4, 0, "invalid argument '%s'", command);
+            return;
+        case PRINT:
+        case LS:
+        case NOUSER:
+            has_value = false;
+            break;
+        default:
+            has_value = true;
+            break;
         }
 
-        //if value is needed save it and inc iteration-counter
+        // if value is needed save it and inc iteration-counter
         if (has_value && (value = parms[i++]) == NULL) {
             error(6, 0, "missing value on '%s'", command);
             return;
         }
-        //lookahead and check next param (needed to pass tests)
-        /*
-        if (parms[i] != NULL && parms[i][0] != '-') {
-            error(7, 0, "invalid arg '%s'", parms[i]);
-            return;
-        }
-        */
 
-        switch(opt){
-            case PRINT:
-                do_print(file_name);
-                printed = true;
-                break;
-            case LS:
-                do_list(file_name, s);
-                printed = true;
-                break;
-            case NOUSER:
-                stop = !do_nouser(s);
-                break;
-            case USER:
-                stop = !do_user(value, s);
-                break;
-            case TYPE:
-                stop = !do_type(value, s);
-                break;
-            case NAME:
-                stop = !do_name(file_name, value);
-                break;
-            case PATH:
-                stop = !do_path(file_name, value, s);
-                break;
-            default:
-                error(100, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", command);
-                break;
-        }
-
-        if(stop){
-            printed = true; //don't print if stopping
+        switch (opt) {
+        case PRINT:
+            stop = !do_print(file_name);
+            printed = true;
+            break;
+        case LS:
+            stop = !do_list(file_name, s);
+            printed = true;
+            break;
+        case NOUSER:
+            stop = !do_nouser(s);
+            break;
+        case USER:
+            stop = !do_user(value, s);
+            break;
+        case TYPE:
+            stop = !do_type(value, s);
+            break;
+        case NAME:
+            stop = !do_name(file_name, value);
+            break;
+        case PATH:
+            stop = !do_path(file_name, value, s);
+            break;
+        default:
+            error(100, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", command);
             break;
         }
 
+        if (stop) {
+            printed = true; // don't print if stopping
+            break;
+        }
     }
 
     if (!printed)
@@ -343,7 +345,12 @@ static void do_params(const char *file_name, const char *const *parms, struct st
  * \return Anzahl der charakter
  */
 static int do_print(const char *file_name) {
-    return printf("%s\n", file_name); //TODO: Error Handling?
+    errno = 0;
+    if (printf("%s\n", file_name) < 0) {
+        error(0, errno, "can't write to stdout");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -365,7 +372,7 @@ static int do_list(const char *file_name, struct stat *s) {
 
     // Get Permissions
     char permissions[11];
-    sprintf_permissions(permissions, s->st_mode);
+    snprintf_permissions(permissions, sizeof(permissions), s->st_mode);
 
     printf("%lu %4lu", s->st_ino, s->st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
     printf(" %s ", permissions);
@@ -424,52 +431,74 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
 /**
  * TODO: Comment
  */
-static void sprintf_permissions(char *buf, int mode) {
-    // TODO: Comment which is which
-    // TODO: Check buffer size!
+static void snprintf_permissions(char *buf, size_t bufsize, int mode) {
+    char lbuf[11] = "----------";
+
     // print node-type
     if (S_ISBLK(mode)) {
-        sprintf(buf++, "%c", 'b');
+        lbuf[0] = 'b';
     } else if (S_ISCHR(mode)) {
-        sprintf(buf++, "%c", 'c');
+        lbuf[0] = 'c';
     } else if (S_ISDIR(mode)) {
-        sprintf(buf++, "%c", 'd');
+        lbuf[0] = 'd';
     } else if (S_ISFIFO(mode)) {
-        sprintf(buf++, "%c", 'p');
+        lbuf[0] = 'p';
     } else if (S_ISLNK(mode)) {
-        sprintf(buf++, "%c", 'l');
+        lbuf[0] = 'l';
     } else if (S_ISSOCK(mode)) {
-        sprintf(buf++, "%c", 's');
-    } else {
-        sprintf(buf++, "%c", '-');
+        lbuf[0] = 's';
     }
 
     // print access mask
-    sprintf(buf++, "%c", (mode & S_IRUSR) ? 'r' : '-'); // user   read
-    sprintf(buf++, "%c", (mode & S_IWUSR) ? 'w' : '-'); // user   write
+    if (mode & S_IRUSR) {
+        lbuf[1] = 'r';
+    } // user   read
+    if (mode & S_IWUSR) {
+        lbuf[2] = 'w';
+    } // user   write
 
-    if (mode & S_IXUSR) { // user   execute/sticky
-        sprintf(buf++, "%c", (mode & S_ISUID) ? 's' : 'x');
-    } else {
-        sprintf(buf++, "%c", (mode & S_ISUID) ? 'S' : '-');
+    // user   execute/sticky
+    if (check_flags(mode, (S_IXUSR | S_ISUID))) {
+        lbuf[3] = 's';
+    } else if (mode & S_IXUSR) {
+        lbuf[3] = 'x';
+    } else if (mode & S_ISUID) {
+        lbuf[3] = 'S';
     }
 
-    sprintf(buf++, "%c", (mode & S_IRGRP) ? 'r' : '-'); // group  read
-    sprintf(buf++, "%c", (mode & S_IWGRP) ? 'w' : '-'); // group  write
+    if (mode & S_IRGRP) {
+        lbuf[4] = 'r';
+    } // group  read
+    if (mode & S_IWGRP) {
+        lbuf[5] = 'w';
+    } // group  write
 
-    if (mode & S_IXGRP) { // group  execute/sticky
-        sprintf(buf++, "%c", (mode & S_ISGID) ? 's' : 'x');
-    } else {
-        sprintf(buf++, "%c", (mode & S_ISGID) ? 'S' : '-');
+    // group  execute/sticky
+    if (check_flags(mode, (S_IXGRP | S_ISGID))) {
+        lbuf[6] = 's';
+    } else if (mode & S_IXGRP) {
+        lbuf[6] = 'x';
+    } else if (mode & S_ISGID) {
+        lbuf[6] = 'S';
     }
 
-    sprintf(buf++, "%c", (mode & S_IROTH) ? 'r' : '-'); // other  read
-    sprintf(buf++, "%c", (mode & S_IWOTH) ? 'w' : '-'); // other  write
-    if (mode & S_IXOTH) {                               // other  execute/sticky
-        sprintf(buf, "%c", (mode & S_ISVTX) ? 's' : 'x');
-    } else {
-        sprintf(buf, "%c", (mode & S_ISVTX) ? 'S' : '-');
+    if (mode & S_IROTH) {
+        lbuf[7] = 'r';
+    } // other  read
+    if (mode & S_IWOTH) {
+        lbuf[8] = 'w';
+    } // other  write
+
+    // other  execute/sticky
+    if (check_flags(mode, (S_IXOTH | S_ISVTX))) {
+        lbuf[9] = 's';
+    } else if (mode & S_IXOTH) {
+        lbuf[9] = 'x';
+    } else if (mode & S_ISVTX) {
+        lbuf[9] = 'S';
     }
+
+    strncpy(buf, lbuf, bufsize);
 }
 
 /**
@@ -510,30 +539,30 @@ static int do_type(const char *value, struct stat *s) {
     }
 
     switch (value[0]) {
-        case 'b':
-            mask = S_IFBLK;
-            break;
-        case 'c':
-            mask = S_IFCHR;
-            break;
-        case 'd':
-            mask = S_IFDIR;
-            break;
-        case 'p':
-            mask = S_IFIFO;
-            break;
-        case 'f':
-            mask = S_IFREG;
-            break;
-        case 'l':
-            mask = S_IFLNK;
-            break;
-        case 's':
-            mask = S_IFSOCK;
-            break;
-        default:
-            error(18, 0, "invalid flag on type '%c'", value[0]);
-            break;
+    case 'b':
+        mask = S_IFBLK;
+        break;
+    case 'c':
+        mask = S_IFCHR;
+        break;
+    case 'd':
+        mask = S_IFDIR;
+        break;
+    case 'p':
+        mask = S_IFIFO;
+        break;
+    case 'f':
+        mask = S_IFREG;
+        break;
+    case 'l':
+        mask = S_IFLNK;
+        break;
+    case 's':
+        mask = S_IFSOCK;
+        break;
+    default:
+        error(18, 0, "invalid flag on type '%c'", value[0]);
+        break;
     }
 
     return (s->st_mode & mask) == mask;
