@@ -29,9 +29,11 @@ endif()
 set(TEST_FIND_DIR ${CMAKE_CURRENT_SOURCE_DIR}/test)
 
 add_custom_target(find_with_test
-        COMMAND /bin/bash ${TEST_FIND_DIR}/test-find.sh -v -f -t ${CMAKE_CURRENT_SOURCE_DIR}/output/Debug/myfind -r ${TEST_FIND_DIR}/bic-myfind
+        COMMAND /bin/bash ${TEST_FIND_DIR}/test-find.sh -v -t ${CMAKE_CURRENT_SOURCE_DIR}/output/Release/myfind -r ${TEST_FIND_DIR}/bic-myfind
         DEPENDS myfind)
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wextra -Wstrict-prototypes -pedantic -fno-common -O3 -g -std=gnu11")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -O3 -std=gnu11")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -g")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -Werror -Wextra -Wstrict-prototypes -pedantic -fno-common")
 
 add_executable (myfind ${SOURCE_FILES})

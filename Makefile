@@ -1,4 +1,5 @@
-CC=gcc52
+CC=gcc
+GCCVERSION = $(shell gcc --version | grep ^gcc | sed 's/^.* //g')
 CFLAGS=-Wall -pedantic -Werror -Wextra -Wstrict-prototypes -fno-common -g -O3 -std=gnu11
 CP=cp
 CD=cd
@@ -7,6 +8,10 @@ GREP=grep
 DOXYGEN=doxygen
 
 OBJECTS=main.o
+
+ifeq "$(GCCVERSION)" "4.4.7"
+    CC=gcc52
+endif
 
 ##
 ## ----------------------------------------------------------------- rules --
@@ -36,7 +41,7 @@ html:
 	$(DOXYGEN) doxygen.dcf
 
 test: myfind
-	test/test-find.sh -t myfind -r test/bic-myfind
+	test/test-find.sh -t ./myfind -r test/bic-myfind
 
 ##
 ## ---------------------------------------------------------- dependencies --

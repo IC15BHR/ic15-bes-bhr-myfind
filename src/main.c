@@ -28,6 +28,12 @@
 #include <dirent.h>   //directory handling
 #include <sys/stat.h> //file stat functions
 
+#include <libgen.h>  //only for basename()
+#include <pwd.h>     //user handling
+#include <grp.h>     //group handling
+#include <time.h>    //for ls time output
+#include <fnmatch.h> //patternmatching
+
 /*
  * -------------------------------------------------------------- defines --
  */
@@ -55,9 +61,21 @@ static void do_help(void);
 
 static void do_file(const char *file_name, const char *const *parms);
 static void do_dir(const char *dir_name, const char *const *parms);
-static void do_params(const char *name, const char *const *parms);
+static void do_params(const char *name, const char *const *parms, struct stat *s);
 
 static int do_print(const char *file_name);
+
+static int do_list(const char *file_name, struct stat *s);
+static void sprintf_permissions(char *buf, int mode);
+static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid);
+static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid);
+static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time);
+
+static int do_nouser(struct stat *s);
+static int do_user(const char *value, struct stat *s);
+static int do_type(const char *value, struct stat *s);
+static int do_name(const char *file_name, const char *value);
+static int do_path(const char *file_name, const char *value, struct stat *s);
 
 /*
  * -------------------------------------------------------------- constants --
@@ -152,7 +170,7 @@ static void do_file(const char *file_name, const char *const *parms) {
         errno = 0;
     }
 
-    do_params(file_name, parms);
+    do_params(file_name, parms, &status);
 
     if (S_ISDIR(status.st_mode)) {
         do_dir(file_name, parms);
@@ -232,32 +250,82 @@ static void do_dir(const char *dir_name, const char *const *parms) {
 
  * \return kein Return-Wert da "void"
  */
-static void do_params(const char *file_name, const char *const *parms) {
-    const char *command;
+static void do_params(const char *file_name, const char *const *parms, struct stat *s) {
+    const char *command, *value;
     int i = 0;
-    bool printed = false;
+    bool printed = false, stop = false, has_value;
 
     while ((command = parms[i++]) != NULL) {
         enum OPT opt = UNKNOWN;
         for (size_t j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
             const char* copt = OPTS[j];
-            if (copt != NULL || strcmp(copt, command) != 0)
+            if (copt == NULL || strcmp(copt, command) != 0)
                 continue;
+            debug_print("DEBUG: found arg '%s' as OPT:'%lu'\n", command, j);
             opt = (enum OPT)j;
         }
 
-        if (opt == UNKNOWN) {
-            error(4, 0, "invalid argument '%s'", command);
+        switch(opt){
+            case UNKNOWN:
+                error(4, 0, "invalid argument '%s'", command);
+                return;
+            case PRINT:
+            case LS:
+            case NOUSER:
+                has_value = false;
+                break;
+            default:
+                has_value = true;
+                break;
+        }
+
+        //if value is needed save it and inc iteration-counter
+        if (has_value && (value = parms[i++]) == NULL) {
+            error(6, 0, "missing value on '%s'", command);
             return;
         }
+        //lookahead and check next param (needed to pass tests)
+        /*
+        if (parms[i] != NULL && parms[i][0] != '-') {
+            error(7, 0, "invalid arg '%s'", parms[i]);
+            return;
+        }
+        */
 
-        if (opt == PRINT) {
-            do_print(file_name);
-            printed = true;
-            continue;
+        switch(opt){
+            case PRINT:
+                do_print(file_name);
+                printed = true;
+                break;
+            case LS:
+                do_list(file_name, s);
+                printed = true;
+                break;
+            case NOUSER:
+                stop = !do_nouser(s);
+                break;
+            case USER:
+                stop = !do_user(value, s);
+                break;
+            case TYPE:
+                stop = !do_type(value, s);
+                break;
+            case NAME:
+                stop = !do_name(file_name, value);
+                break;
+            case PATH:
+                stop = !do_path(file_name, value, s);
+                break;
+            default:
+                error(100, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", command);
+                break;
         }
 
-        error(100, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", command);
+        if(stop){
+            printed = true; //don't print if stopping
+            break;
+        }
+
     }
 
     if (!printed)
@@ -276,4 +344,237 @@ static void do_params(const char *file_name, const char *const *parms) {
  */
 static int do_print(const char *file_name) {
     return printf("%s\n", file_name); //TODO: Error Handling?
+}
+
+/**
+ * TODO: Comment
+ */
+static int do_list(const char *file_name, struct stat *s) {
+    // Get Last Modified Time
+    char timetext[80];
+    snprintf_filetime(timetext, sizeof(timetext), &(s->st_mtim.tv_sec));
+
+    // Get User Name
+    char user_name[255]; // TODO: read buffer-size with sysconf()
+    if (snprintf_username(user_name, sizeof(user_name), s->st_uid) == 0)
+        sprintf(user_name, "%d", s->st_uid);
+
+    // Get Group Name
+    char group_name[255]; // TODO: read buffer-size with sysconf()
+    snprintf_groupname(group_name, sizeof(group_name), s->st_gid);
+
+    // Get Permissions
+    char permissions[11];
+    sprintf_permissions(permissions, s->st_mode);
+
+    printf("%lu %4lu", s->st_ino, s->st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
+    printf(" %s ", permissions);
+    printf("%3d %-8s %-8s %8lu %s %s\n", (int)s->st_nlink, user_name, group_name, s->st_size, timetext, file_name);
+
+    return true;
+}
+
+/**
+ * TODO: Comment
+ */
+static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
+    struct tm lt;
+
+    localtime_r(time, &lt);
+    debug_print("DEBUG: print_filetime time: '%ld'\n", (long)time);
+    return strftime(buf, bufsize, "%b %d %H:%M", &lt);
+}
+
+/**
+ * TODO: Comment
+ */
+static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
+    errno = 0;
+    const struct passwd *usr = getpwuid(uid);
+
+    if (usr == NULL) {
+        if (buf != NULL)
+            buf[0] = '\0';
+        return 0;
+    } else {
+        if (buf != NULL)
+            strncpy(buf, usr->pw_name, bufsize);
+        return strlen(usr->pw_name);
+    }
+}
+
+/**
+ * TODO: Comment
+ */
+static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
+    errno = 0;
+    const struct group *grp = getgrgid(gid);
+
+    if (grp == NULL) {
+        error(0, errno, "Failed to get group from id '%d'", gid);
+        buf[0] = '\0';
+        return 0;
+    } else {
+        if (buf != NULL)
+            strncpy(buf, grp->gr_name, bufsize);
+        return strlen(grp->gr_name);
+    }
+}
+
+/**
+ * TODO: Comment
+ */
+static void sprintf_permissions(char *buf, int mode) {
+    // TODO: Comment which is which
+    // TODO: Check buffer size!
+    // print node-type
+    if (S_ISBLK(mode)) {
+        sprintf(buf++, "%c", 'b');
+    } else if (S_ISCHR(mode)) {
+        sprintf(buf++, "%c", 'c');
+    } else if (S_ISDIR(mode)) {
+        sprintf(buf++, "%c", 'd');
+    } else if (S_ISFIFO(mode)) {
+        sprintf(buf++, "%c", 'p');
+    } else if (S_ISLNK(mode)) {
+        sprintf(buf++, "%c", 'l');
+    } else if (S_ISSOCK(mode)) {
+        sprintf(buf++, "%c", 's');
+    } else {
+        sprintf(buf++, "%c", '-');
+    }
+
+    // print access mask
+    sprintf(buf++, "%c", (mode & S_IRUSR) ? 'r' : '-'); // user   read
+    sprintf(buf++, "%c", (mode & S_IWUSR) ? 'w' : '-'); // user   write
+
+    if (mode & S_IXUSR) { // user   execute/sticky
+        sprintf(buf++, "%c", (mode & S_ISUID) ? 's' : 'x');
+    } else {
+        sprintf(buf++, "%c", (mode & S_ISUID) ? 'S' : '-');
+    }
+
+    sprintf(buf++, "%c", (mode & S_IRGRP) ? 'r' : '-'); // group  read
+    sprintf(buf++, "%c", (mode & S_IWGRP) ? 'w' : '-'); // group  write
+
+    if (mode & S_IXGRP) { // group  execute/sticky
+        sprintf(buf++, "%c", (mode & S_ISGID) ? 's' : 'x');
+    } else {
+        sprintf(buf++, "%c", (mode & S_ISGID) ? 'S' : '-');
+    }
+
+    sprintf(buf++, "%c", (mode & S_IROTH) ? 'r' : '-'); // other  read
+    sprintf(buf++, "%c", (mode & S_IWOTH) ? 'w' : '-'); // other  write
+    if (mode & S_IXOTH) {                               // other  execute/sticky
+        sprintf(buf, "%c", (mode & S_ISVTX) ? 's' : 'x');
+    } else {
+        sprintf(buf, "%c", (mode & S_ISVTX) ? 'S' : '-');
+    }
+}
+
+/**
+ * TODO: Comment
+ */
+static int do_nouser(struct stat *s) { return snprintf_username(NULL, 0, s->st_uid) == 0; }
+
+/**
+ * TODO: Comment
+ */
+static int do_user(const char *value, struct stat *s) {
+    struct passwd *pass;
+    char *tmp;
+    unsigned long uid;
+
+    pass = getpwnam(value);
+    if (pass == NULL) {
+        uid = strtoul(value, &tmp, 0);
+
+        if (*tmp != '\0') {
+            error(1, errno, "Can't find user '%s'", value);
+            return false;
+        }
+    } else {
+        uid = pass->pw_uid;
+    }
+    return uid == s->st_uid;
+}
+
+/**
+ * TODO: Comment
+ */
+static int do_type(const char *value, struct stat *s) {
+    mode_t mask = 0;
+    if (strlen(value) != 1) {
+        error(32, 0, "invalid type value '%s'", value);
+        return false;
+    }
+
+    switch (value[0]) {
+        case 'b':
+            mask = S_IFBLK;
+            break;
+        case 'c':
+            mask = S_IFCHR;
+            break;
+        case 'd':
+            mask = S_IFDIR;
+            break;
+        case 'p':
+            mask = S_IFIFO;
+            break;
+        case 'f':
+            mask = S_IFREG;
+            break;
+        case 'l':
+            mask = S_IFLNK;
+            break;
+        case 's':
+            mask = S_IFSOCK;
+            break;
+        default:
+            error(18, 0, "invalid flag on type '%c'", value[0]);
+            break;
+    }
+
+    return (s->st_mode & mask) == mask;
+}
+
+/**
+ * TODO: Comment
+ */
+static int do_name(const char *file_name, const char *value) {
+    int result = 0;
+
+    char *name = basename((char *)file_name);
+    result = fnmatch(value, name, 0);
+    debug_print("DEBUG: do_name for '%s' with '%s' => %d\n", file_name, value, result);
+
+    if (result == 0)
+        return true;
+    else if (result == FNM_NOMATCH)
+        return false;
+
+    error(23, errno, "Pattern '%s' failed on '%s'", value, file_name);
+    return false;
+}
+
+/**
+ * TODO: Comment
+ */
+static int do_path(const char *file_name, const char *value, struct stat *s) {
+    int result = 0;
+
+    if (S_ISDIR(s->st_mode))
+        return false;
+
+    result = fnmatch(value, file_name, 0);
+
+    if (result == 0)
+        return true;
+    else if (result == FNM_NOMATCH)
+        return false;
+
+    error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
+    return false;
+    return true;
 }
