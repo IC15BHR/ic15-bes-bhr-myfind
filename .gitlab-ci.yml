@@ -1,3 +1,5 @@
+image: gcc:5
+
 stages:
 - build
 - cleanup_build
