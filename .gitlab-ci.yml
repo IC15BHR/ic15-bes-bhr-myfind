@@ -1,0 +1,23 @@
+stages:
+- build
+- cleanup_build
+- test
+
+build_job:
+  stage: build
+  script:
+  - make build
+  artifacts:
+    paths:
+      - myfind
+
+cleanup_build_job:
+  stage: cleanup_build
+  script:
+  - cleanup build when failed
+  when: on_failure
+
+test_job:
+  stage: test
+  script:
+  - make test
