@@ -1,4 +1,4 @@
-image: gcc:5
+image: mriedmann/bic-find-test
 
 stages:
 - build
