@@ -9,7 +9,7 @@ DOXYGEN=doxygen
 
 OBJECTS=main.o
 
-ifeq "$(GCCVERSION)" "4.4.7"
+ifeq "$(GCCVERSION)" "4.4.7-16)"
     CC=gcc52
 endif
 

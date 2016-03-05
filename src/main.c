@@ -261,7 +261,7 @@ static void do_dir(const char *dir_name, const char *const *parms) {
  * \return kein Return-Wert da "void"
  */
 static void do_params(const char *file_name, const char *const *parms, struct stat *s) {
-    const char *command, *value;
+    const char *command = NULL, *value = NULL;
     int i = 0;
     bool printed = false, stop = false, has_value;
 
@@ -271,7 +271,7 @@ static void do_params(const char *file_name, const char *const *parms, struct st
             const char *copt = OPTS[j];
             if (copt == NULL || strcmp(copt, command) != 0)
                 continue;
-            debug_print("DEBUG: found arg '%s' as OPT:'%lu'\n", command, j);
+            debug_print("DEBUG: found arg '%s' as OPT:'%lu'\n", command, (long)j);
             opt = (enum OPT)j;
         }
 
