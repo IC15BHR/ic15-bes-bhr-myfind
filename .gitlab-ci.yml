@@ -1,4 +1,5 @@
 image: mriedmann/bic-find-test
+services: []
 
 stages:
 - build
