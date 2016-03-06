@@ -389,7 +389,7 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
 
     localtime_r(time, &lt);
     debug_print("DEBUG: print_filetime time: '%ld'\n", (long)time);
-    return strftime(buf, bufsize, "%b %d %H:%M", &lt);
+    return strftime(buf, bufsize, "%b %e %H:%M", &lt);
 }
 
 /**
