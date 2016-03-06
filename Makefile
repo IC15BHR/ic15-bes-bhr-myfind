@@ -41,7 +41,7 @@ html:
 	$(DOXYGEN) doxygen.dcf
 
 test: myfind
-	test/test-find.sh -t ./myfind -r test/bic-myfind
+	test/test-find.sh -q -t ./myfind -r test/bic-myfind
 
 ##
 ## ---------------------------------------------------------- dependencies --
