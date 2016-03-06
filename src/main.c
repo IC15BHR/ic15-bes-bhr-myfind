@@ -374,7 +374,7 @@ static int do_list(const char *file_name, struct stat *s) {
     char permissions[11];
     snprintf_permissions(permissions, sizeof(permissions), s->st_mode);
 
-    printf("%lu %4lu", s->st_ino, s->st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
+    printf("%6lu %4lu", s->st_ino, s->st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
     printf(" %s ", permissions);
     printf("%3d %-8s %-8s %8lu %s %s\n", (int)s->st_nlink, user_name, group_name, s->st_size, timetext, file_name);
 
