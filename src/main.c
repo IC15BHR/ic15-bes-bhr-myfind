@@ -131,9 +131,7 @@ int main(int argc, char *argv[]) {
 /**
  * do_help Funktion
  * Diese Funktion wird aufgerufen, wenn der User zu wenig Argumente übergibt.
- *
- * \param 'void' Es werden keine Paramenter übergeben.
- *
+ * Dem User wird vorgeschlagen, welche Argumente er nutzen kann.
  */
 static void do_help(void) {
     printf("Usage: find <dir> <expressions>\n\nExpressions:\n"
@@ -250,15 +248,14 @@ static void do_dir(const char *dir_name, const char *const *parms) {
  * do_params Funktion
  * Diese Funktion überprüft die eigegebenen Parameter,
  * geht diese in einer While-Schleife durch und führt bei
- * Treffer das jeweilige If-Statement / Funktion aus.
+ * Treffer den jeweiligen 'case' aus.
  *
  * \param file_name
  * \param params
  *
  * \func do_print() gibt den Filenamen auf der Konsole aus.
  * \func do_list() gibt username, groupname und permissions aus.
-
- * \return kein Return-Wert da "void"
+ * TODO: Funktionen
  */
 static void do_params(const char *file_name, const char *const *parms, struct stat *s) {
     const char *command = NULL, *value = NULL;
@@ -354,7 +351,22 @@ static int do_print(const char *file_name) {
 }
 
 /**
- * TODO: Comment
+ * do_list Funktion
+ * Diese Funktion ruft die Funktionen 'snprintf_filetime()', 'snprintf_username', 'snprintf_groupname'
+ * und 'snprintf_permissions' auf, übergibt diesen die jeweiligen Parameter
+ * und gibt anschließend die Werte mittels 'printf()' aus.
+ *
+ * \param file_name
+ * \param s
+ *
+ * \func snprintf_filetime() ruft die Funktion auf. Bekommt eine Zahl != 0 zurück wenn erfolgreich
+ *          und '0' im Fehlerfall.
+ * \func snprintf_username()
+ * \func snprintf_groupname()
+ * \func snprintf_permissions()
+ *
+ * \return always 'true'
+ * \return '1' always
  */
 static int do_list(const char *file_name, struct stat *s) {
     // Get Last Modified Time
@@ -382,7 +394,19 @@ static int do_list(const char *file_name, struct stat *s) {
 }
 
 /**
- * TODO: Comment
+ * snprintf_filetime Funktion
+ * Diese Funktion gibt die Zeit der letzten Änderung des Files zurück.
+ *
+ * \param buf
+ * \param buffsize
+ * \param time
+ *
+ * \func localtime_r() gibt die lokale Zeit im struct 'tm' zurück und nutzt 'lt' zum speichern des Ergebnisses.
+ * \func strftime() gibt die Anzahl der geschriebenen Charakter zurück, oder '0' wenn das Maximum überschritten
+ *      wird.
+ *
+ * \return Anzahl der geschriebenen Charakter, wenn erfolgreich.
+ * \return '0' im Fehlerfall.
  */
 static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
     struct tm lt;
@@ -393,6 +417,8 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
 }
 
 /**
+ * snprintf_username Funktion
+ *
  * TODO: Comment
  */
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
