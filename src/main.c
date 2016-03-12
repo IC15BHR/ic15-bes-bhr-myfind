@@ -9,7 +9,7 @@
  *
  * @date 2015/02/25
  *
- * @version 1
+ * @version 1.1
  *
  * @todo error handling
  */
@@ -359,11 +359,11 @@ static int do_print(const char *file_name) {
  * \param file_name
  * \param s
  *
- * \func snprintf_filetime() ruft die Funktion auf. Bekommt eine Zahl != 0 zurück wenn erfolgreich
- *          und '0' im Fehlerfall.
- * \func snprintf_username()
- * \func snprintf_groupname()
- * \func snprintf_permissions()
+ * \func snprintf_filetime() bekommt eine Zahl != 0 zurück wenn erfolgreich und '0' im Fehlerfall.
+ * \func snprintf_username() bekommt strln zurück wenn erfolgreich und '0' im Fehlerfall.
+ * \func snprintf_groupname() bekommt strln zurück wenn erfolgreich und '0' im Fehlerfall.
+ * \func snprintf_permissions() übergibt über strncpy() den Array für die Permissions.
+ * TODO: ist eigentlich void, wie kann man das anders/besser formulieren?
  *
  * \return always 'true'
  * \return '1' always
@@ -418,9 +418,22 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
 
 /**
  * snprintf_username Funktion
+ * Diese Funktion sucht nach einer passenden User-ID, speichert diese in '*usr' zwischen,
+ * überprüft danach ob es sich um einen NULL-Pointer oder um einen Eintrag handelt und gibt, im Falle eines
+ * Eintrages, den Namen zurück.
  *
- * TODO: Comment
+ * \param buf
+ * \param bufsize
+ * \param uid
+ *
+ * \func getpwuid() Sucht einen Eintrag mit der passenden User-ID. Gibt 'NULL' im Fehlerfall zurück.
+ * \func strncpy() speichert 'usr->pwname' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
+ * \func strln() gibt die Länge des String zurück.
+ *
+ * \return '0' im Fehlerfall
+ * \return strln wenn erfolgreich
  */
+
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
     errno = 0;
     const struct passwd *usr = getpwuid(uid);
@@ -437,7 +450,21 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
 }
 
 /**
- * TODO: Comment
+ * snprintf_groupname Funktion
+ * Diese Funktion sucht nach einen Eintrag mit der passenden Group-ID und speichert diese in '*grp' zwischen
+ * Wenn der Pointer == 'NULL', dann konnte die Group-ID nicht gefunden werden.
+ * Wenn der Pointer != 'NULL', dann wird der Gruppenname zurück gegeben.
+ *
+ * \param buf
+ * \param bufsize
+ * \param gid
+ *
+ * \func getgrgid() Sucht nach einen Eintrag mit der passenden Group-ID. Gibt 'NULL' im Fehlerfall zurück.
+ * \func strncpy() speichert 'grp->gr_name' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
+ * \func strln() gibt die Länge des String zurück.
+ *
+ * \return '0' im Fehlerfall
+ * \return strln wenn erfolgreich
  */
 static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
     errno = 0;
@@ -455,7 +482,38 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
 }
 
 /**
- * TODO: Comment
+ * snprintf_permissions Funktion
+ * Diese Funktion gibt die Permissions aus.
+ * Es wird ein Array mit 12 Elementen initialisiert.
+ *
+ * Für das Element '0' wir überprüft:
+ * 'b' = 'S_ISBLK' => blockiertes Gerät
+ * 'c' = 'S_ISCHR' => zeichenorientiertes Gerät
+ * 'd' = 'S_ISDIR' => Verzeichnis
+ * 'p' = 'S_ISFIFO' => FiFo
+ * 'l' = 'S_ISLNK' => symbolische Verknüpfung
+ * 's' = 'S_ISOCK' => Socket
+ *
+ * Für das Element '1','4','7' wird überpfüft:
+ * Wenn 'mode' & 'S_ISUSR' (Besitzer/Gruppe/Andere hat Lesezugriff), dann 'r'
+ *
+ * Für Element '2','5','8' wird überprüft:
+ * Wenn 'mode' & 'S_IWUSR' (Besitzer/Gruppe/Andere hat Schreibzugriff), dann 'w'
+ *
+ * Für Element '3','6','9' wird überprüft:
+ * Wenn check_flags() == true, dann 's'
+ *      'S_IXUSR' (Besitzer hat Ausführrechte) | 'S_ISUID' (SUID-Bit)
+ * Wenn 'mode' & 'S_IXUSR', dann 'x'
+ * Wenn 'mode' & 'S_ISUID', dann 'S'
+ * TODO: Passt das so? Oder soll ich 'IR*' 'IS*' machen?
+ *
+ * \param buf
+ * \param bufsize
+ * \param mode
+ *
+ * \func check_flags() Wenn 'mode' == 1 und ('Flag_A' | 'Flag_B') == 1, dann '1'
+ * TODO: ist eigentlich Makro, trotzdem als Funktion behandeln?
+ * \func strncpy() speichert 'lbuf' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
  */
 static void snprintf_permissions(char *buf, size_t bufsize, int mode) {
     char lbuf[11] = "----------";
@@ -528,12 +586,27 @@ static void snprintf_permissions(char *buf, size_t bufsize, int mode) {
 }
 
 /**
- * TODO: Comment
+ * do_nouser Funktion
+ * Diese Funktion ...
+ * TODO: Geht in die Funktion 'snprintf_username' und übergibt die Werte. Wnn '0' zurück kommt dann? Wenn != '0' zurück kommt dann?
  */
 static int do_nouser(struct stat *s) { return snprintf_username(NULL, 0, s->st_uid) == 0; }
 
 /**
- * TODO: Comment
+ * do_user Funktion
+ * Diese Funktion sucht einen Eintrag einem passenden Usernamen und speichert diesen in 'pass' ab.
+ * Wenn 'pass' == 'NULL' wird in 'uid' ein integer gespeichert
+ * TODO: Welcher integer?
+ * Wenn nicht wird in 'uid' 'pass->pw_uid' gespeichert
+ * TODO: ist das nicht egal? Wird doch sowieso mit 's->st_uid' überschrieben
+ *
+ * \param value
+ * \param s
+ *
+ * \func getpwnam() Sucht einen Eintrag mit einem passenden Usernamen
+ * \func strtoul() Konvertiert einen String zu einen unsigned long integer
+ *
+ * \return 'uid' always
  */
 static int do_user(const char *value, struct stat *s) {
     struct passwd *pass;
@@ -555,7 +628,17 @@ static int do_user(const char *value, struct stat *s) {
 }
 
 /**
+ * do_type Funktion
+ * TODO: Wann wird diese Funktion aufgerufen? Was macht sie? Macht sie nicht das selbe wie bei 'permissions' lbuf[0]?
  * TODO: Comment
+ *
+ * \param value
+ * \param s
+ *
+ * \func strlen() gibt die Länge des Strings zurück.
+ *
+ * \return '0' wenn (s->st_mode & mask) == mask
+ * \return TODO: was wird zurück gegeben, wenn '1'?
  */
 static int do_type(const char *value, struct stat *s) {
     mode_t mask = 0;
@@ -595,7 +678,20 @@ static int do_type(const char *value, struct stat *s) {
 }
 
 /**
- * TODO: Comment
+ * do_name Funktion
+ * Diese Funktion gibt zurück ob der Name gefunden wurde oder nicht.
+ * TODO: Stimmt das?
+ *
+ * \param file_name
+ * \param value
+ *
+ * \func basename() gibt die letzte Komponente des Pfardes zurück.
+ * \func fnmatch() überprüft ob 'name' mit 'value' übereinstimmt.
+ *      Wenn Übereinstimmung, dann '0'.
+ *      Wenn keine Übereinstimmung, dann 'FNM_NOMATCH'
+ *
+ * \return 'true' wenn Übereintimmung
+ * \return 'false' wenn keine Übereinstimmung
  */
 static int do_name(const char *file_name, const char *value) {
     int result = 0;
@@ -614,7 +710,20 @@ static int do_name(const char *file_name, const char *value) {
 }
 
 /**
- * TODO: Comment
+ * do_path Funktion
+ * Diese Funktion gibt zurück ob der Pfad gefunden wurde oder nicht.
+ * TODO: Stimmt das?
+ *
+ * \param file_name
+ * \param value
+ * \param s
+ *
+ * \func fnmatch() überprüft ob 'file_name' mit 'value' übereinstimmt.
+ *      Wenn Übereinstimmung, dann '0'.
+ *      Wenn keine Übereinstimmung, dann 'FNM_NOMATCH'
+ *
+ * \return 'true' wenn Übereinstimmung
+ * \return 'false' wenn keine Übereinstimmung
  */
 static int do_path(const char *file_name, const char *value, struct stat *s) {
     int result = 0;
