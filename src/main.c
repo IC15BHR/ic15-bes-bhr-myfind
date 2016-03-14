@@ -102,10 +102,8 @@ static const char *const OPTS[] = {NULL, "-print", "-ls", "-user", "-name", "-ty
  *
  * \func do_help() wird aufgerufen, wenn zu wenig Argumente übergeben werden.
  * \func do_file() wird aufgerufen, wenn eine richtige Anzahl an Argumenten übergeben wurde.
- * \func free() gibt den, für das Programm angelegten Speicher, wieder frei.
  *
- * \return always "success"
- * \return 0 always
+ * \return 0 on "success"
  */
 int main(int argc, char *argv[]) {
     if (argc < ARG_MIN) {
@@ -146,15 +144,16 @@ static void do_help(void) {
 
 /**
  * do_file Funktion
- * Diese Funktion überprüft ob es sich um ein directory handelt oder nicht.
- * Handelt es sich um ein directory, wird in die Funktion do_dir gesprungen.
- * Handelt es sich um kein directory, wird mit einer Fehlermeldung das Programm beendet.
+ * Diese Funktion überprüft ob es sich um ein directory handelt oder nicht und ruft
+ * in jedem fall do_params() auf.
+ * Wird ein Directory erkannt, wird zusätzlich do_dir aufgerufen.
+ * Wird ein Fehler beim auslesen der Attribute erkannt wird die Verarbeitung abgebrochen.
  *
- * \param file_name ist der relative Pfard
- * \param params übernimmt das dritte Argument [2]
+ * \param file_name ist der relative Pfad
+ * \param params übernimmt die angegebenen Parameter
  *
- * \func lstat() ließt die file-Attribute aus und speichert sie in BUF
- * \func do_params() wird aufgerufen um die Parameter auszulesen.
+ * \func lstat() ließt die file-Attribute aus und speichert sie in einen Buffer
+ * \func do_params() wird aufgerufen um die Parameter zu verarbeiten.
  * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt.
  *
  */
@@ -176,6 +175,7 @@ static void do_file(const char *file_name, const char *const *parms) {
     if (result == -1) {
         error(0, errno, "can't get stat of '%s'", file_name);
         errno = 0;
+        return; //TODO: Check??
     }
 
     do_params(file_name, parms, &status);
@@ -187,9 +187,7 @@ static void do_file(const char *file_name, const char *const *parms) {
 
 /**
  * do_dir Funktion
- * Diese Funktion überprüft ob es sich bei dem angegebenen Argument um ein directory
- * oder um ein File handelt.
- * Handelt es sich um ein File, wird in die Funktion do_file() gesprungen.
+ * Diese Funktion verarbeitet ein Directory indem es alle Einträge durchgeht und an do_file() übergibt.
  *
  * \param dir_name
  * \param params
@@ -262,15 +260,18 @@ static void do_params(const char *file_name, const char *const *parms, struct st
     int i = 0;
     bool printed = false, stop = false, has_value;
 
+    //TODO: Weiter kommentieren
+    //save current param to command an increment counter
     while ((command = parms[i++]) != NULL) {
-        enum OPT opt = UNKNOWN;
-        for (size_t j = 0; j < OPTS_COUNT && opt == UNKNOWN; j++) {
-            const char *copt = OPTS[j];
-            if (copt == NULL || strcmp(copt, command) != 0)
+        size_t j = 0;
+        enum OPT opt = UNKNOWN; //default value if no valid param is found
+        do {
+            const char *current_opt = OPTS[++j];
+            if (current_opt == NULL || strcmp(current_opt, command) != 0)
                 continue;
             debug_print("DEBUG: found arg '%s' as OPT:'%lu'\n", command, (long)j);
             opt = (enum OPT)j;
-        }
+        } while(opt == UNKNOWN && j < OPTS_COUNT);
 
         switch (opt) {
         case UNKNOWN:
@@ -284,6 +285,12 @@ static void do_params(const char *file_name, const char *const *parms, struct st
         default:
             has_value = true;
             break;
+        }
+
+        //if no value is expected check if next param is null or a valid arg (start with '-')
+        if (!has_value && parms[i] != NULL && parms[i][0] != '-') {
+            error(7, 0, "unexpected value '%s' on '%s'", parms[i], command);
+            return;
         }
 
         // if value is needed save it and inc iteration-counter
@@ -430,23 +437,21 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
  * \func strncpy() speichert 'usr->pwname' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
  * \func strln() gibt die Länge des String zurück.
  *
- * \return '0' im Fehlerfall
- * \return strln wenn erfolgreich
+ * \return 0 Wenn kein User in passwd gefunden wurde
+ * \return >0 Gibt länge des Usernamen zurück
  */
-
+//TODO: Wenn NULL als buf übergeben wird, trotzdem ausgabe der Länge
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
     errno = 0;
     const struct passwd *usr = getpwuid(uid);
 
-    if (usr == NULL) {
-        if (buf != NULL)
-            buf[0] = '\0';
+    if (usr == NULL){
+        error(0, errno, "Failed to get group from id '%d'", uid);
         return 0;
-    } else {
-        if (buf != NULL)
-            strncpy(buf, usr->pw_name, bufsize);
-        return strlen(usr->pw_name);
     }
+
+    strncpy(buf, usr->pw_name, bufsize);
+    return strlen(usr->pw_name);
 }
 
 /**
@@ -463,9 +468,10 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
  * \func strncpy() speichert 'grp->gr_name' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
  * \func strln() gibt die Länge des String zurück.
  *
- * \return '0' im Fehlerfall
+ * \return 0 im Fehlerfall
  * \return strln wenn erfolgreich
  */
+//TODO: Kommentar ausbessern
 static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
     errno = 0;
     const struct group *grp = getgrgid(gid);
@@ -487,8 +493,8 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
  * Es wird ein Array mit 12 Elementen initialisiert.
  *
  * Für das Element '0' wir überprüft:
- * 'b' = 'S_ISBLK' => blockiertes Gerät
- * 'c' = 'S_ISCHR' => zeichenorientiertes Gerät
+ * 'b' = 'S_ISBLK' => block Device
+ * 'c' = 'S_ISCHR' => char Device
  * 'd' = 'S_ISDIR' => Verzeichnis
  * 'p' = 'S_ISFIFO' => FiFo
  * 'l' = 'S_ISLNK' => symbolische Verknüpfung
@@ -505,14 +511,14 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
  *      'S_IXUSR' (Besitzer hat Ausführrechte) | 'S_ISUID' (SUID-Bit)
  * Wenn 'mode' & 'S_IXUSR', dann 'x'
  * Wenn 'mode' & 'S_ISUID', dann 'S'
- * TODO: Passt das so? Oder soll ich 'IR*' 'IS*' machen?
+ * TODO: Nur Flags beschreiben, rest in code kommentieren?
  *
  * \param buf
  * \param bufsize
  * \param mode
  *
- * \func check_flags() Wenn 'mode' == 1 und ('Flag_A' | 'Flag_B') == 1, dann '1'
- * TODO: ist eigentlich Makro, trotzdem als Funktion behandeln?
+ * \func check_flags() Makro für Bitmask Flag-Checking
+ * TODO: Verlinken?
  * \func strncpy() speichert 'lbuf' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
  */
 static void snprintf_permissions(char *buf, size_t bufsize, int mode) {
@@ -590,7 +596,11 @@ static void snprintf_permissions(char *buf, size_t bufsize, int mode) {
  * Diese Funktion ...
  * TODO: Geht in die Funktion 'snprintf_username' und übergibt die Werte. Wnn '0' zurück kommt dann? Wenn != '0' zurück kommt dann?
  */
-static int do_nouser(struct stat *s) { return snprintf_username(NULL, 0, s->st_uid) == 0; }
+//TODO: Reihenfolge!
+static int do_nouser(struct stat *s) {
+    const struct passwd *usr = getpwuid(s->st_uid);
+    return usr == NULL;
+}
 
 /**
  * do_user Funktion
@@ -598,7 +608,6 @@ static int do_nouser(struct stat *s) { return snprintf_username(NULL, 0, s->st_u
  * Wenn 'pass' == 'NULL' wird in 'uid' ein integer gespeichert
  * TODO: Welcher integer?
  * Wenn nicht wird in 'uid' 'pass->pw_uid' gespeichert
- * TODO: ist das nicht egal? Wird doch sowieso mit 's->st_uid' überschrieben
  *
  * \param value
  * \param s
@@ -629,8 +638,7 @@ static int do_user(const char *value, struct stat *s) {
 
 /**
  * do_type Funktion
- * TODO: Wann wird diese Funktion aufgerufen? Was macht sie? Macht sie nicht das selbe wie bei 'permissions' lbuf[0]?
- * TODO: Comment
+ * TODO: copy from print_permissions
  *
  * \param value
  * \param s
@@ -680,7 +688,7 @@ static int do_type(const char *value, struct stat *s) {
 /**
  * do_name Funktion
  * Diese Funktion gibt zurück ob der Name gefunden wurde oder nicht.
- * TODO: Stimmt das?
+ * TODO: Stimmt das? Neein siehe CIS ;)
  *
  * \param file_name
  * \param value
@@ -712,18 +720,18 @@ static int do_name(const char *file_name, const char *value) {
 /**
  * do_path Funktion
  * Diese Funktion gibt zurück ob der Pfad gefunden wurde oder nicht.
- * TODO: Stimmt das?
+ * TODO: Stimmt das? Nein siehe CIS ;)
  *
  * \param file_name
  * \param value
  * \param s
  *
  * \func fnmatch() überprüft ob 'file_name' mit 'value' übereinstimmt.
- *      Wenn Übereinstimmung, dann '0'.
- *      Wenn keine Übereinstimmung, dann 'FNM_NOMATCH'
+ *      Wenn Übereinstimmung, dann 0.
+ *      Wenn keine Übereinstimmung, dann FNM_NOMATCH
  *
- * \return 'true' wenn Übereinstimmung
- * \return 'false' wenn keine Übereinstimmung
+ * \return true wenn Übereinstimmung
+ * \return false wenn keine Übereinstimmung
  */
 static int do_path(const char *file_name, const char *value, struct stat *s) {
     int result = 0;
@@ -740,5 +748,4 @@ static int do_path(const char *file_name, const char *value, struct stat *s) {
 
     error(23, 0, "Pattern '%s' failed on '%s'", value, file_name);
     return false;
-    return true;
 }
