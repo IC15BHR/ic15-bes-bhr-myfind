@@ -69,6 +69,7 @@
 /**
  * /enum OPT
  * TODO: Erklärung der Parameter (copy&paste) und Verweis hierher
+ *
  */
 typedef enum OPT { UNKNOWN, PRINT, LS, USER, NAME, TYPE, NOUSER, PATH } opt_t;
 
@@ -307,9 +308,11 @@ static retval_t do_dir(const char *dir_name, const char *const *parms) {
  * \param file_name
  * \param params
  *
+ * \func strtoopt() gibt als Ergebnis einen Wert des Enums OPT zurück.
+ * \func check_value() gibt als Ergebnis einen Wert des Enums RETVAL_CV zurück.
+ * \func handle_param() Ruft die einzelnen unterfunktionen basierend auf der OPT auf.
+ * \func handle_error() Errorhandling.
  * \func do_param_print() gibt den Filenamen auf der Konsole aus.
- * \func do_param_list() gibt username, groupname und permissions aus.
- * TODO: Funktionen
  */
 static retval_t do_params(const char *file_name, const char *const *parms, struct stat *s) {
     const char *command = NULL, *value = NULL;
@@ -319,7 +322,6 @@ static retval_t do_params(const char *file_name, const char *const *parms, struc
     param_context_t paramc = {file_name, s, NULL};
     opt_t opt;
 
-    // TODO: Weiter kommentieren
     // save current param to command and increment counter
     while ((command = parms[i++]) != NULL) {
         value = parms[i];
@@ -430,8 +432,10 @@ static retval_t check_value(opt_t opt, const char *next_parm) {
 }
 
 /**
- * Ruft die einzelnen unterfunktionen basierend auf der OPT auf.
- * TODO: vernünftig Kommentieren
+ * handle_param Funktion
+ * Diese Funktion bekommt OPT übergeben und die einzelnen Unterfunktionen,
+ * basierend auf OPT auf.
+ * Wurde ein falscher Parameter übergeben, wird ein Error übergeben.
  */
 static retval_t handle_param(opt_t opt, param_context_t *paramc) {
     debug_print("DEBUG: handle param '%d'\n", opt);
@@ -488,10 +492,9 @@ static retval_t do_param_print(const param_context_t *paramc) {
  * \func snprintf_username() bekommt strln zurück wenn erfolgreich und '0' im Fehlerfall.
  * \func snprintf_groupname() bekommt strln zurück wenn erfolgreich und '0' im Fehlerfall.
  * \func snprintf_permissions() übergibt über strncpy() den Array für die Permissions.
- * TODO: ist eigentlich void, wie kann man das anders/besser formulieren?
  *
- * \return always 'true'
- * \return '1' always
+ * \return always true
+ * \return 1 always
  */
 static retval_t do_param_list(const param_context_t *paramc) {
     const struct stat *s = paramc->file_stat;
@@ -530,12 +533,12 @@ static retval_t do_param_list(const param_context_t *paramc) {
  * \param buffsize
  * \param time
  *
- * \func localtime_r() gibt die lokale Zeit im struct 'tm' zurück und nutzt 'lt' zum speichern des Ergebnisses.
- * \func strftime() gibt die Anzahl der geschriebenen Charakter zurück, oder '0' wenn das Maximum überschritten
+ * \func localtime_r() gibt die lokale Zeit im struct tm zurück und nutzt lt zum speichern des Ergebnisses.
+ * \func strftime() gibt die Anzahl der geschriebenen Charakter zurück, oder 0 wenn das Maximum überschritten
  *      wird.
  *
  * \return Anzahl der geschriebenen Charakter, wenn erfolgreich.
- * \return '0' im Fehlerfall.
+ * \return 0 im Fehlerfall.
  */
 static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
     struct tm lt;
@@ -559,10 +562,9 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
  * \func strncpy() speichert 'usr->pwname' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
  * \func strln() gibt die Länge des String zurück.
  *
- * \return 0 Wenn kein User in passwd gefunden wurde
+ * \return 0 Wenn kein User in passwd gefunden wurde oder  NULL übergeben wurde
  * \return >0 Gibt länge des Usernamen zurück
  */
-// TODO: Wenn NULL als buf übergeben wird, trotzdem ausgabe der Länge
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
     struct passwd *usr = getpwuid(uid);
     size_t len;
@@ -580,7 +582,7 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
 
 /**
  * snprintf_groupname Funktion
- * Diese Funktion sucht nach einen Eintrag mit der passenden Group-ID und speichert diese in '*grp' zwischen
+ * Diese Funktion speichert Gruppennamen in len und gibt diesen zurück
  * Wenn der Pointer == 'NULL', dann konnte die Group-ID nicht gefunden werden.
  * Wenn der Pointer != 'NULL', dann wird der Gruppenname zurück gegeben.
  *
@@ -593,9 +595,8 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
  * \func strln() gibt die Länge des String zurück.
  *
  * \return 0 im Fehlerfall
- * \return strln wenn erfolgreich
+ * \return len wenn erfolgreich
  */
-// TODO: Kommentar ausbessern
 static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
     struct group *grp = getgrgid(gid);
     size_t len;
@@ -614,33 +615,12 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
 /**
  * snprintf_permissions Funktion
  * Diese Funktion gibt die Permissions aus.
- * Es wird ein Array mit 12 Elementen initialisiert.
- *
- * Für das Element '0' wir überprüft:
- * 'b' = 'S_ISBLK' => block Device
- * 'c' = 'S_ISCHR' => char Device
- * 'd' = 'S_ISDIR' => Verzeichnis
- * 'p' = 'S_ISFIFO' => FiFo
- * 'l' = 'S_ISLNK' => symbolische Verknüpfung
- * 's' = 'S_ISOCK' => Socket
- *
- * Für das Element '1','4','7' wird überpfüft:
- * Wenn 'mode' & 'S_ISUSR' (Besitzer/Gruppe/Andere hat Lesezugriff), dann 'r'
- *
- * Für Element '2','5','8' wird überprüft:
- * Wenn 'mode' & 'S_IWUSR' (Besitzer/Gruppe/Andere hat Schreibzugriff), dann 'w'
- *
- * Für Element '3','6','9' wird überprüft:
- * Wenn check_flags() == true, dann 's'
- *      'S_IXUSR' (Besitzer hat Ausführrechte) | 'S_ISUID' (SUID-Bit)
- * Wenn 'mode' & 'S_IXUSR', dann 'x'
- * Wenn 'mode' & 'S_ISUID', dann 'S'
- * TODO: Nur Flags beschreiben, rest in code kommentieren?
  *
  * \param buf
  * \param bufsize
  * \param mode
  *
+ * \func get_file_type()
  * \func check_flags() Makro für Bitmask Flag-Checking
  * TODO: Verlinken?
  * \func strncpy() speichert 'lbuf' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
@@ -707,7 +687,16 @@ static size_t snprintf_permissions(char *buf, size_t bufsize, int mode) {
     strncpy(buf, lbuf, bufsize);
     return 10; // number im characters that should be written to buffer
 }
-
+/**
+ * get_file_type Funktion
+ *
+ * 'b' = 'S_ISBLK' => block Device
+ * 'c' = 'S_ISCHR' => char Device
+ * 'd' = 'S_ISDIR' => Verzeichnis
+ * 'p' = 'S_ISFIFO' => FiFo
+ * 'l' = 'S_ISLNK' => symbolische Verknüpfung
+ * 's' = 'S_ISOCK' => Socket
+ */
 char get_file_type(int mode) {
     if (S_ISBLK(mode)) {
         return 'b';
@@ -730,9 +719,7 @@ char get_file_type(int mode) {
 
 /**
  * do_param_nouser Funktion
- * Diese Funktion ...
- * TODO: Geht in die Funktion 'snprintf_username' und übergibt die Werte. Wnn '0' zurück kommt dann? Wenn != '0' zurück
- * kommt dann?
+ * Diese Funktion ließt den nouser Parameter aus.
  */
 static retval_t do_param_nouser(const param_context_t *paramc) {
     size_t name_len = snprintf_username(NULL, 0, paramc->file_stat->st_uid);
@@ -741,10 +728,7 @@ static retval_t do_param_nouser(const param_context_t *paramc) {
 
 /**
  * do_param_user Funktion
- * Diese Funktion sucht einen Eintrag einem passenden Usernamen und speichert diesen in 'pass' ab.
- * Wenn 'pass' == 'NULL' wird in 'uid' ein integer gespeichert
- * TODO: Welcher integer?
- * Wenn nicht wird in 'uid' 'pass->pw_uid' gespeichert
+ * finde Directoryeinträge eines Users
  *
  * \param value
  * \param s
@@ -781,7 +765,8 @@ static retval_t do_param_user(const param_context_t *paramc) {
 
 /**
  * do_param_type Funktion
- * TODO: copy from print_permissions
+ * Finde Directoryeinträge mit passendem Typ
+ * TODO: Check die Funktion nicht ganz.
  *
  * \param value
  * \param s
@@ -789,7 +774,6 @@ static retval_t do_param_user(const param_context_t *paramc) {
  * \func strlen() gibt die Länge des Strings zurück.
  *
  * \return '0' wenn (s->st_mode & mask) == mask
- * \return TODO: was wird zurück gegeben, wenn '1'?
  */
 static retval_t do_param_type(const param_context_t *paramc) {
     const char *valid_flags = "bcdpfls";
@@ -811,8 +795,7 @@ static retval_t do_param_type(const param_context_t *paramc) {
 
 /**
  * do_param_name Funktion
- * Diese Funktion gibt zurück ob der Name gefunden wurde oder nicht.
- * TODO: Stimmt das? Neein siehe CIS ;)
+ * Finde Directoryeinträge mit passendem Namen
  *
  * \param file_name
  * \param value
@@ -842,8 +825,8 @@ static retval_t do_param_name(const param_context_t *paramc) {
 
 /**
  * do_param_path Funktion
- * Diese Funktion gibt zurück ob der Pfad gefunden wurde oder nicht.
- * TODO: Stimmt das? Nein siehe CIS ;)
+ * Finde Directoryeinträge mit passendem Pfad (inkl. Namen)
+
  *
  * \param file_name
  * \param value
@@ -871,7 +854,10 @@ static retval_t do_param_path(const param_context_t *paramc) {
 
     return ERR_INVALID_PATTERN;
 }
-
+/*
+ * handle_error Funktion
+ * Diese Funktion wird für das Errorhandling aufgerufen.
+ */
 static void handle_error(const char *file_name, const char *command, const char *value, int result) {
     if (result == ERR_INVALID_ARGUMENT)
         error(0, 0, "invalid argument '%s'", command);
