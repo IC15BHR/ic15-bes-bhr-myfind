@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <string.h> //std string functions
 #include <error.h>  //errorhandling
@@ -62,72 +63,67 @@
  */
 typedef enum OPT { UNKNOWN, PRINT, LS, USER, NAME, TYPE, NOUSER, PATH } opt_t;
 
-/**
- * /enum RETVAL_CV
- * TODO: kurze Erklärung zu den einträgen
- */
-typedef enum RETVAL_CV {
-    UNKNOWN_OPT = 0,
-    NO_VALUE = 1,
-    VALUE_OK = 2,
-    UNEXPECTED_PARAM = -1,
-    MISSING_PARAM = -2
-} retval_cv_t;
-
 typedef struct PARAM_CONTEXT {
     const char *file_name;
-    const char *value;
     const struct stat *file_stat;
-    const struct passwd *user;
-    const struct group *group;
-    bool user_loaded;
-    bool group_loaded;
-    bool permissions_loaded;
-    char permissions[11];
+    const char *value;
 } param_context_t;
+
+typedef int retval_t;
 
 /*
  * -------------------------------------------------------------- prototypes --
  */
 static void do_help(void);
 
-static void do_file(const char *file_name, const char *const *parms);
-static void do_dir(const char *dir_name, const char *const *parms);
+static retval_t do_file(const char *file_name, const char *const *parms);
+static retval_t do_dir(const char *dir_name, const char *const *parms);
 
-static void do_params(const char *name, const char *const *parms, struct stat *s);
+static retval_t do_params(const char *name, const char *const *parms, struct stat *s);
 static opt_t get_opt(const char *command);
-static retval_cv_t check_value(opt_t opt, const char *next_parm);
-static bool handle_param(opt_t opt, param_context_t *paramc);
+static retval_t check_value(opt_t opt, const char *next_parm);
+static retval_t handle_param(opt_t opt, param_context_t *paramc);
 
-static bool do_param_print(const param_context_t *paramc);
+static retval_t do_param_print(const param_context_t *paramc);
 
-static bool do_param_list(const param_context_t *paramc);
+static retval_t do_param_list(const param_context_t *paramc);
 static size_t snprintf_permissions(char *buf, size_t bufsize, int mode);
-static size_t snprintf_username(char *buf, size_t bufsize, const struct passwd *usr);
-static size_t snprintf_groupname(char *buf, size_t bufsize, const struct group *grp);
+static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid);
+static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid);
 static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time);
 
-static bool do_param_nouser(const param_context_t *paramc);
-static bool do_param_user(const param_context_t *paramc);
-static bool do_param_type(const param_context_t *paramc);
-static bool do_param_name(const param_context_t *paramc);
-static bool do_param_path(const param_context_t *paramc);
+static retval_t do_param_nouser(const param_context_t *paramc);
+static retval_t do_param_user(const param_context_t *paramc);
+static retval_t do_param_type(const param_context_t *paramc);
+static retval_t do_param_name(const param_context_t *paramc);
+static retval_t do_param_path(const param_context_t *paramc);
+
+char get_file_type(int mode);
 
 /*
 * -------------------------------------------------------------- constants --
 */
 static const char *const OPT_NAME[] = {NULL, "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
 
-//MyFind Error/Exit Codes
-static const int MF_ERR_NONCRITICAL = 0x0000;
-static const int MF_ERR_TO0_FEW_ARGUMENTS = 0x0001;
-static const int MF_ERR_INVALID_ARGUMENT = 0x0011;
-static const int MF_ERR_UNEXPECTED_ARGUMENT = 0x0012;
-static const int MF_ERR_MISSING_ARGUMENT = 0x0013;
-static const int MF_ERR_NO_USER_FOUND = 0x0111;
-static const int MF_ERR_INVALID_TYPE_ARGUMENT = 0x0161;
-static const int MF_ERR_INVALID_PATTERN = 0x0171;
-static const int MF_ERR_NOT_IMPLEMENTED = 0xFFFF;
+//Error/Exit Codes
+static const retval_t ERR_NOERROR = 0x0000;
+static const retval_t ERR_NONCRITICAL = 0x0000;
+static const retval_t ERR_TO0_FEW_ARGUMENTS = 0x0011;
+static const retval_t ERR_INVALID_ARGUMENT = 0x0012;
+static const retval_t ERR_VALUE_UNEXPECTED = 0x101;
+static const retval_t ERR_VALUE_MISSING = 0x102;
+static const retval_t ERR_NO_USER_FOUND = 0x0111;
+static const retval_t ERR_INVALID_TYPE_ARGUMENT = 0x0161;
+static const retval_t ERR_INVALID_PATTERN = 0x0171;
+static const retval_t ERR_NOT_IMPLEMENTED = 0xFFFF;
+
+//Param Check-Values
+static const retval_t VALUE_NOTNEEDED = 2;
+static const retval_t VALUE_OK = 3;
+
+//Param Command-Values
+static const retval_t P_PROCEED = 0;
+static const retval_t P_STOP = 1;
 /*
  * -------------------------------------------------------------- functions --
  */
@@ -148,9 +144,11 @@ static const int MF_ERR_NOT_IMPLEMENTED = 0xFFFF;
  * \return 0 on "success"
  */
 int main(int argc, char *argv[]) {
+    int result = ERR_NOERROR;
+
     if (argc < ARG_MIN) {
         do_help();
-        error(MF_ERR_TO0_FEW_ARGUMENTS, 0, "Too few arguments given!"); // TODO: maybe errorcode available?
+        error(ERR_TO0_FEW_ARGUMENTS, 0, "Too few arguments given!"); // TODO: maybe errorcode available?
     }
 
     // remove tailing slash if present
@@ -164,8 +162,10 @@ int main(int argc, char *argv[]) {
     for (int i = 2; i <= argc; i++)
         parms[i - 2] = argv[i];
 
-    do_file(argv[1], parms);
-    return 0;
+    result = do_file(argv[1], parms);
+    debug_print("DEBUG: Finished execution! Exitcode: '%d'", result);
+
+    return result;
 }
 
 /**
@@ -174,7 +174,7 @@ int main(int argc, char *argv[]) {
  * Dem User wird vorgeschlagen, welche Argumente er nutzen kann.
  */
 static void do_help(void) {
-    printf("Usage: find <dir> <expressions>\n\nExpressions:\n"
+    fprintf(stdout, "Usage: find <dir> <expressions>\n\nExpressions:\n"
            "  -print              returns formatted list\n"
            "  -ls                 returns formatted list\n"
            "  -user   <name/uid>  file-owners filter\n"
@@ -199,14 +199,9 @@ static void do_help(void) {
  * \func do_dir() wird zusätzlich aufgerufen wenn es sich um ein directory handelt.
  *
  */
-static void do_file(const char *file_name, const char *const *parms) {
+static retval_t do_file(const char *file_name, const char *const *parms) {
     int result = 0;
     struct stat status;
-
-    if (file_name == NULL) {
-        debug_print("DEBUG: NULL filename in do_file %s", "\n");
-        return;
-    }
 
     debug_print("DEBUG: do_file '%s'\n", file_name);
 
@@ -214,17 +209,20 @@ static void do_file(const char *file_name, const char *const *parms) {
     result = lstat(file_name, &status);
     debug_print("DEBUG: lstat (%d:%d)\n", result, errno);
 
+    //do not panic on unreadable stat
     if (result == -1) {
-        error(MF_ERR_NONCRITICAL, errno, "can't get stat of '%s'", file_name);
+        error(ERR_NONCRITICAL, errno, "can't get stat of '%s'", file_name);
         errno = 0;
-        return;
+    } else {
+        result = do_params(file_name, parms, &status);
+
+        //do not go deeper if an error has happend
+        if (result == ERR_NOERROR && S_ISDIR(status.st_mode))
+            result = do_dir(file_name, parms);
     }
 
-    do_params(file_name, parms, &status);
-
-    if (S_ISDIR(status.st_mode)) {
-        do_dir(file_name, parms);
-    }
+    debug_print("DEBUG: ended do_file with '%d' \n", result);
+    return result;
 }
 
 /**
@@ -239,14 +237,10 @@ static void do_file(const char *file_name, const char *const *parms) {
  * \func do_file() springt zurück (rekussive Aufruf) in die do_file Funktion.
  * \func closedir() schließt den diretory stream wieder.
  */
-static void do_dir(const char *dir_name, const char *const *parms) {
+static retval_t do_dir(const char *dir_name, const char *const *parms) {
     struct dirent *dp;
     size_t pathsize;
-
-    if (dir_name == NULL) {
-        debug_print("DEBUG: NULL dirname in do_dir%s", "\n");
-        return;
-    }
+    int result = 0;
 
     debug_print("DEBUG: do_dir '%s'\n", dir_name);
 
@@ -255,6 +249,7 @@ static void do_dir(const char *dir_name, const char *const *parms) {
         // readdir returns (NULL && errno=0) on EOF,
         // (NULL && errno != 0) is not EOF!
         while (((dp = readdir(dirp)) != NULL) || errno != 0) {
+            //leave "." and ".." links alone
             if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) {
                 debug_print("DEBUG: skip '%s' '%s' (%d)\n", dir_name, dp->d_name, errno);
                 continue;
@@ -264,24 +259,31 @@ static void do_dir(const char *dir_name, const char *const *parms) {
             char path[pathsize];
             snprintf(path, pathsize, "%s/%s", dir_name, dp->d_name);
 
+            //if readpath throws an error, print it and continue
             if (errno != 0) {
-                error(MF_ERR_NONCRITICAL, errno, "can't read dir '%s'", path);
+                error(ERR_NONCRITICAL, errno, "can't read dir '%s'", path);
                 errno = 0;
                 continue;
             }
 
             debug_print("DEBUG: readdir '%s' '%s'\n", dp->d_name, path);
-            do_file(path, parms);
+
+            result = do_file(path, parms);
+            if(result != ERR_NOERROR)
+                break;
         }
 
         if (closedir(dirp) == -1) {
-            error(MF_ERR_NONCRITICAL, errno, "faild to close dir '%s'", dir_name);
+            error(ERR_NONCRITICAL, errno, "faild to close dir '%s'", dir_name);
             errno = 0;
         }
     } else {
-        error(MF_ERR_NONCRITICAL, errno, "can't open dir '%s'", dir_name);
+        error(ERR_NONCRITICAL, errno, "can't open dir '%s'", dir_name);
         errno = 0;
     }
+
+    debug_print("DEBUG: ended do_dir with '%d' \n", result);
+    return result;
 }
 
 /**
@@ -297,14 +299,12 @@ static void do_dir(const char *dir_name, const char *const *parms) {
  * \func do_param_list() gibt username, groupname und permissions aus.
  * TODO: Funktionen
  */
-static void do_params(const char *file_name, const char *const *parms, struct stat *s) {
+static retval_t do_params(const char *file_name, const char *const *parms, struct stat *s) {
     const char *command = NULL, *nextParam = NULL;
     int i = 0;
-    bool printed = false, stop = false;
-    param_context_t paramc = {NULL, NULL, NULL, NULL, NULL, false, false, false, ""};
-
-    paramc.file_name = file_name;
-    paramc.file_stat = s;
+    int result = P_PROCEED;
+    bool printed = false;
+    param_context_t paramc = {file_name, s, NULL};
 
     //TODO: Weiter kommentieren
     //save current param to command and increment counter
@@ -315,32 +315,35 @@ static void do_params(const char *file_name, const char *const *parms, struct st
         debug_print("DEBUG: found arg '%s' on '%d' as OPT:'%lu'\n", command, i-1, (long)opt);
 
         if(opt == UNKNOWN){
-            error(MF_ERR_INVALID_ARGUMENT, 0, "invalid argument '%s'", command);
-            return;
+            error(0, 0, "invalid argument '%s'", command);
+            return ERR_INVALID_ARGUMENT;
         }
 
-        retval_cv_t cvret = check_value(opt, nextParam);
-        debug_print("DEBUG: checked value '%s' got '%d' \n", nextParam, cvret);
-        switch(cvret) {
-            case UNEXPECTED_PARAM:
-                error(MF_ERR_UNEXPECTED_ARGUMENT, 0, "unexpected value '%s' on '%s'", parms[i], command);
-                return;
-            case MISSING_PARAM:
-                error(MF_ERR_MISSING_ARGUMENT, 0, "missing value on '%s'", command);
-                return;
-            default:
-                break;
-        }
+        result = check_value(opt, nextParam);
 
         //increment to skip value if value needed;
-        if(cvret == VALUE_OK)
+        if(result == VALUE_OK) {
+            debug_print("DEBUG: using value '%s'\n", nextParam);
             i++;
+        } else if(result == VALUE_NOTNEEDED) {
+            debug_print("DEBUG: no value needed%s\n"," ");
+        }
+        else if (result == ERR_VALUE_UNEXPECTED) {
+            error(0, 0, "unexpected value '%s' on '%s'", parms[i], command);
+            break;
+        } else if(result == ERR_VALUE_MISSING) {
+            error(0, 0, "missing value on '%s'", command);
+            break;
+        } else {
+            error(0, 0, "value check failed on '%s'", command);
+            break;
+        }
 
         paramc.value = nextParam;
 
-        stop = !handle_param(opt, &paramc);
+        result = handle_param(opt, &paramc);
 
-        if (stop)
+        if (result != P_PROCEED)
             break;
 
         switch(opt) {
@@ -353,8 +356,14 @@ static void do_params(const char *file_name, const char *const *parms, struct st
         }
     }
 
-    if (!printed && !stop)
-        do_param_print(&paramc);
+    if (!printed && result == P_PROCEED)
+        result = do_param_print(&paramc);
+
+    if(result == P_PROCEED || result == P_STOP)
+        result = ERR_NOERROR; //reset error
+
+    debug_print("DEBUG: ended do_params with '%d' \n", result);
+    return result;
 }
 
 /**
@@ -388,25 +397,25 @@ static opt_t get_opt(const char *command) {
  * \return retval_cv_t gibt als Ergebnis einen Wert des Enums RETVAL_CV zurück.
  * \relates RETVAL_CV
  */
-static retval_cv_t check_value(opt_t opt, const char *next_parm) {
+static retval_t check_value(opt_t opt, const char *next_parm) {
     switch (opt) {
         case PRINT:
         case LS:
         case NOUSER:
             //if no value is expected check if next param is null or a valid arg (start with '-')
             if (next_parm != NULL && next_parm[0] != '-')
-                return UNEXPECTED_PARAM;
-            return NO_VALUE;
+                return ERR_VALUE_MISSING;
+            return VALUE_NOTNEEDED;
         case USER:
         case TYPE:
         case NAME:
         case PATH:
             // if value is needed check if not null
             if (next_parm == NULL)
-                return MISSING_PARAM;
+                return ERR_VALUE_UNEXPECTED;
             return VALUE_OK;
         default:
-            return UNKNOWN_OPT;
+            return ERR_NOT_IMPLEMENTED;
     }
 }
 
@@ -414,29 +423,8 @@ static retval_cv_t check_value(opt_t opt, const char *next_parm) {
  * Ruft die einzelnen unterfunktionen basierend auf der OPT auf.
  * TODO: vernünftig Kommentieren
  */
-static bool handle_param(opt_t opt, param_context_t *paramc) {
+static retval_t handle_param(opt_t opt, param_context_t *paramc) {
     debug_print("DEBUG: handle param '%d'\n", opt);
-    //dependency handling with fallthrought
-    switch (opt){
-        case NOUSER:
-        case LS:
-            if(!paramc->group_loaded) {
-                paramc->group = getgrgid(paramc->file_stat->st_gid);
-                paramc->group_loaded = true;
-            }
-        case TYPE:
-            if(!paramc->permissions_loaded) {
-                snprintf_permissions(paramc->permissions, 11, paramc->file_stat->st_mode);
-                paramc->permissions_loaded = true;
-            }
-        case USER:
-            if(!paramc->user_loaded) {
-                paramc->user = getpwuid(paramc->file_stat->st_uid);
-                paramc->user_loaded = true;
-            }
-        default:
-            break;
-    }
 
     //call param method
     switch (opt) {
@@ -455,8 +443,8 @@ static bool handle_param(opt_t opt, param_context_t *paramc) {
         case PATH:
             return do_param_path(paramc);
         default:
-            error(MF_ERR_NOT_IMPLEMENTED, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", OPT_NAME[opt]);
-            return false;
+            error(0, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", OPT_NAME[opt]);
+            return ERR_NOT_IMPLEMENTED;
     }
 }
 
@@ -466,17 +454,17 @@ static bool handle_param(opt_t opt, param_context_t *paramc) {
  *
  * \param file_name
  *
- * \func printf()
+ * \func fprintf()
  *
  * \return Anzahl der charakter
  */
-static bool do_param_print(const param_context_t *paramc) {
+static retval_t do_param_print(const param_context_t *paramc) {
     errno = 0;
     if (fprintf(stdout, "%s\n", paramc->file_name) < 0) {
-        error(MF_ERR_NONCRITICAL, errno, "can't write to stdout");
-        return false;
+        error(0, errno, "can't write to stdout");
+        return ERR_NONCRITICAL;
     }
-    return true;
+    return P_PROCEED;
 }
 
 /**
@@ -497,7 +485,7 @@ static bool do_param_print(const param_context_t *paramc) {
  * \return always 'true'
  * \return '1' always
  */
-static bool do_param_list(const param_context_t *paramc) {
+static retval_t do_param_list(const param_context_t *paramc) {
     const struct stat *s = paramc->file_stat;
 
     // Get Last Modified Time
@@ -506,12 +494,12 @@ static bool do_param_list(const param_context_t *paramc) {
 
     // Get User Name
     char user_name[255]; // TODO: read buffer-size with sysconf()
-    if (snprintf_username(user_name, sizeof(user_name), paramc->user) == 0)
+    if (snprintf_username(user_name, sizeof(user_name), paramc->file_stat->st_uid) == 0)
         sprintf(user_name, "%d", s->st_uid);
 
     // Get Group Name
     char group_name[255]; // TODO: read buffer-size with sysconf()
-    snprintf_groupname(group_name, sizeof(group_name), paramc->group);
+    snprintf_groupname(group_name, sizeof(group_name), paramc->file_stat->st_gid);
 
     // Get Permissions
     char permissions[11];
@@ -521,7 +509,7 @@ static bool do_param_list(const param_context_t *paramc) {
     fprintf(stdout, " %s ", permissions);
     fprintf(stdout, "%3d %-8s %-8s %8lu %s %s\n", (int)s->st_nlink, user_name, group_name, s->st_size, timetext, paramc->file_name);
 
-    return true;
+    return P_PROCEED;
 }
 
 /**
@@ -540,11 +528,20 @@ static bool do_param_list(const param_context_t *paramc) {
  * \return '0' im Fehlerfall.
  */
 static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
-    struct tm lt;
+    static time_t last_in;
+    static char last_out[255];
+    static size_t last_len;
 
-    localtime_r(time, &lt);
-    debug_print("DEBUG: print_filetime time: '%ld'\n", (long)time);
-    return strftime(buf, bufsize, "%b %e %H:%M", &lt);
+    if(last_in != *time){
+        struct tm lt;
+
+        localtime_r(time, &lt);
+        debug_print("DEBUG: print_filetime time: '%ld'\n", (long)time);
+        last_len = strftime(last_out, 255, "%b %e %H:%M", &lt);
+    }
+
+    strncpy(buf, last_out, bufsize);
+    return last_len;
 }
 
 /**
@@ -565,12 +562,29 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
  * \return >0 Gibt länge des Usernamen zurück
  */
 //TODO: Wenn NULL als buf übergeben wird, trotzdem ausgabe der Länge
-static size_t snprintf_username(char *buf, size_t bufsize, const struct passwd *usr) {
-    if(usr == NULL)
-        return 0;
+static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
+    static uid_t last_in = UINT32_MAX; //not clean but effective
+    static char last_out[255];
+    static size_t name_len = 0;
 
-    strncpy(buf, usr->pw_name, bufsize);
-    return strlen(usr->pw_name);
+    if(last_in != uid) {
+        struct passwd *usr = getpwuid(uid);
+
+        if (usr == NULL)
+            name_len = 0;
+        else {
+            name_len = strlen(usr->pw_name);
+            strncpy(last_out, usr->pw_name, name_len);
+        }
+    }else{
+        debug_print("DEBUG: cachehit on '%d'\n", uid);
+    }
+
+    if(buf != NULL && name_len > 0)
+        strncpy(buf, last_out, bufsize);
+
+    debug_print("DEBUG: got username with len '%lu'\n", name_len);
+    return name_len;
 }
 
 /**
@@ -591,12 +605,25 @@ static size_t snprintf_username(char *buf, size_t bufsize, const struct passwd *
  * \return strln wenn erfolgreich
  */
 //TODO: Kommentar ausbessern
-static size_t snprintf_groupname(char *buf, size_t bufsize, const struct group *grp) {
-    if (grp == NULL)
-        return 0;
+static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
+    static gid_t last_in = UINT32_MAX; //not clean but effective
+    static char last_out[255];
+    static size_t name_len = 0;
 
-    strncpy(buf, grp->gr_name, bufsize);
-    return strlen(grp->gr_name);
+    if(last_in != gid){
+        struct group *grp = getgrgid(gid);
+
+        if (grp == NULL)
+            return 0;
+
+        name_len = strlen(grp->gr_name);
+        strncpy(last_out, grp->gr_name, name_len + 1);
+    }
+
+    if(buf != NULL)
+        strncpy(buf, last_out, bufsize);
+
+    return name_len;
 }
 
 /**
@@ -634,74 +661,108 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, const struct group *
  * \func strncpy() speichert 'lbuf' (Zeiger auf Quell-Array) in 'buf' (Zeiger auf Ziel-Array).
  */
 static size_t snprintf_permissions(char *buf, size_t bufsize, int mode) {
-    char lbuf[11] = "----------";
+    static int last_in;
+    static char last_out[11];
 
-    // print node-type
-    if (S_ISBLK(mode)) {
-        lbuf[0] = 'b';
-    } else if (S_ISCHR(mode)) {
-        lbuf[0] = 'c';
-    } else if (S_ISDIR(mode)) {
-        lbuf[0] = 'd';
-    } else if (S_ISFIFO(mode)) {
-        lbuf[0] = 'p';
-    } else if (S_ISLNK(mode)) {
-        lbuf[0] = 'l';
-    } else if (S_ISSOCK(mode)) {
-        lbuf[0] = 's';
+    //lookup cache
+    if(last_in != mode) {
+        char lbuf[11] = "----------";
+
+        // print node-type
+        lbuf[0] = get_file_type(mode);
+
+        //regular files are displayed as '-'
+        if(lbuf[0] == 'f')
+            lbuf[0] = '-';
+
+        // print access mask
+        if (mode & S_IRUSR) {
+            lbuf[1] = 'r';
+        } // user   read
+        if (mode & S_IWUSR) {
+            lbuf[2] = 'w';
+        } // user   write
+
+        // user   execute/sticky
+        if (check_flags(mode, (S_IXUSR | S_ISUID))) {
+            lbuf[3] = 's';
+        } else if (mode & S_IXUSR) {
+            lbuf[3] = 'x';
+        } else if (mode & S_ISUID) {
+            lbuf[3] = 'S';
+        }
+
+        if (mode & S_IRGRP) {
+            lbuf[4] = 'r';
+        } // group  read
+        if (mode & S_IWGRP) {
+            lbuf[5] = 'w';
+        } // group  write
+
+        // group  execute/sticky
+        if (check_flags(mode, (S_IXGRP | S_ISGID))) {
+            lbuf[6] = 's';
+        } else if (mode & S_IXGRP) {
+            lbuf[6] = 'x';
+        } else if (mode & S_ISGID) {
+            lbuf[6] = 'S';
+        }
+
+        if (mode & S_IROTH) {
+            lbuf[7] = 'r';
+        } // other  read
+        if (mode & S_IWOTH) {
+            lbuf[8] = 'w';
+        } // other  write
+
+        // other  execute/sticky
+        if (check_flags(mode, (S_IXOTH | S_ISVTX))) {
+            lbuf[9] = 's';
+        } else if (mode & S_IXOTH) {
+            lbuf[9] = 'x';
+        } else if (mode & S_ISVTX) {
+            lbuf[9] = 'S';
+        }
+
+        //save to cache
+        last_in = mode;
+        strncpy(last_out, lbuf, 11);
     }
 
-    // print access mask
-    if (mode & S_IRUSR) {
-        lbuf[1] = 'r';
-    } // user   read
-    if (mode & S_IWUSR) {
-        lbuf[2] = 'w';
-    } // user   write
-
-    // user   execute/sticky
-    if (check_flags(mode, (S_IXUSR | S_ISUID))) {
-        lbuf[3] = 's';
-    } else if (mode & S_IXUSR) {
-        lbuf[3] = 'x';
-    } else if (mode & S_ISUID) {
-        lbuf[3] = 'S';
-    }
-
-    if (mode & S_IRGRP) {
-        lbuf[4] = 'r';
-    } // group  read
-    if (mode & S_IWGRP) {
-        lbuf[5] = 'w';
-    } // group  write
-
-    // group  execute/sticky
-    if (check_flags(mode, (S_IXGRP | S_ISGID))) {
-        lbuf[6] = 's';
-    } else if (mode & S_IXGRP) {
-        lbuf[6] = 'x';
-    } else if (mode & S_ISGID) {
-        lbuf[6] = 'S';
-    }
-
-    if (mode & S_IROTH) {
-        lbuf[7] = 'r';
-    } // other  read
-    if (mode & S_IWOTH) {
-        lbuf[8] = 'w';
-    } // other  write
-
-    // other  execute/sticky
-    if (check_flags(mode, (S_IXOTH | S_ISVTX))) {
-        lbuf[9] = 's';
-    } else if (mode & S_IXOTH) {
-        lbuf[9] = 'x';
-    } else if (mode & S_ISVTX) {
-        lbuf[9] = 'S';
-    }
-
-    strncpy(buf, lbuf, bufsize);
+    strncpy(buf, last_out, bufsize);
     return 10; //number im characters that should be written to buffer
+}
+
+char get_file_type(int mode) {
+    static int last_input;
+    static char last_output;
+
+    //reload cache if needed
+    if(last_input != mode) {
+        if (S_ISBLK(mode)) {
+            last_output = 'b';
+        } else if (S_ISCHR(mode)) {
+            last_output = 'c';
+        } else if (S_ISDIR(mode)) {
+            last_output = 'd';
+        } else if (S_ISFIFO(mode)) {
+            last_output = 'p';
+        } else if (S_ISLNK(mode)) {
+            last_output = 'l';
+        } else if (S_ISSOCK(mode)) {
+            last_output = 's';
+        } else if (S_ISREG(mode)) {
+            last_output = 'f';
+        } else {
+            last_output = '-';
+        }
+    } else {
+        debug_print("DEBUG: cachehit on '%d'\n", mode);
+    }
+    //update cache
+    last_input = mode;
+    debug_print("DEBUG: mode is '%c'\n", last_output);
+    return last_output;
 }
 
 /**
@@ -709,8 +770,9 @@ static size_t snprintf_permissions(char *buf, size_t bufsize, int mode) {
  * Diese Funktion ...
  * TODO: Geht in die Funktion 'snprintf_username' und übergibt die Werte. Wnn '0' zurück kommt dann? Wenn != '0' zurück kommt dann?
  */
-static bool do_param_nouser(const param_context_t *paramc) {
-    return paramc->user == NULL;
+static retval_t do_param_nouser(const param_context_t *paramc) {
+    size_t name_len = snprintf_username(NULL,0, paramc->file_stat->st_uid);
+    return (name_len == 0) ? P_PROCEED : P_STOP;
 }
 
 /**
@@ -728,25 +790,34 @@ static bool do_param_nouser(const param_context_t *paramc) {
  *
  * \return 'uid' always
  */
-static bool do_param_user(const param_context_t *paramc) {
+static retval_t do_param_user(const param_context_t *paramc) {
     char *tmp;
-    unsigned long uid;
+    static char *last_value;
+    static unsigned long last_uid;
 
-    uid = strtoul(paramc->value, &tmp, 0);
+    if(last_value != paramc->value) {
+        debug_print("DEBUG: resolving user '%s'\n", paramc->value);
 
-    if (*tmp != '\0') {
         errno = 0;
-        struct passwd *usr = getpwnam(tmp);
+        struct passwd *usr = getpwnam(paramc->value);
 
-        if(usr == NULL) {
-            error(MF_ERR_NO_USER_FOUND, errno, "Can't find user '%s'", paramc->value);
-            return false;
+        if (usr == NULL) {
+            last_uid = strtoul(paramc->value, &tmp, 0);
+
+            if (*tmp != '\0') {
+                error(0, errno, "Can't find user '%s'", paramc->value);
+                return ERR_NO_USER_FOUND;
+            }
+        } else {
+            last_uid = usr->pw_uid;
         }
+        last_value = (char*)paramc->value;
+    } else {
+        debug_print("DEBUG: cachehit on '%s'\n", paramc->value);
+    }
 
-        uid = usr->pw_uid;
-    } else { return false; }
-
-    return uid == paramc->file_stat->st_uid;
+    debug_print("DEBUG: is uid '%lu' == '%d'?\n", last_uid, paramc->file_stat->st_uid);
+    return (last_uid == paramc->file_stat->st_uid) ? P_PROCEED : P_STOP;
 }
 
 /**
@@ -761,41 +832,29 @@ static bool do_param_user(const param_context_t *paramc) {
  * \return '0' wenn (s->st_mode & mask) == mask
  * \return TODO: was wird zurück gegeben, wenn '1'?
  */
-static bool do_param_type(const param_context_t *paramc) {
-    mode_t mask = 0;
+static retval_t do_param_type(const param_context_t *paramc) {
     if (strlen(paramc->value) != 1) {
-        error(MF_ERR_INVALID_TYPE_ARGUMENT, 0, "invalid type value '%s'", paramc->value);
-        return false;
+        error(0, 0, "invalid type value '%s'", paramc->value);
+        return ERR_INVALID_TYPE_ARGUMENT;
     }
 
+    //only for validity checking
     switch (paramc->value[0]) {
     case 'b':
-        mask = S_IFBLK;
-        break;
     case 'c':
-        mask = S_IFCHR;
-        break;
     case 'd':
-        mask = S_IFDIR;
-        break;
     case 'p':
-        mask = S_IFIFO;
-        break;
     case 'f':
-        mask = S_IFREG;
-        break;
     case 'l':
-        mask = S_IFLNK;
-        break;
     case 's':
-        mask = S_IFSOCK;
         break;
     default:
-        error(MF_ERR_INVALID_TYPE_ARGUMENT, 0, "invalid flag on type '%c'", paramc->value[0]);
-        break;
+        error(0, 0, "invalid flag on type '%c'", paramc->value[0]);
+        return  ERR_INVALID_TYPE_ARGUMENT;
     }
 
-    return (paramc->file_stat->st_mode & mask) == mask;
+    char type_c = get_file_type(paramc->file_stat->st_mode);
+    return (type_c == paramc->value[0]) ? P_PROCEED : P_STOP;
 }
 
 /**
@@ -814,7 +873,7 @@ static bool do_param_type(const param_context_t *paramc) {
  * \return 'true' wenn Übereintimmung
  * \return 'false' wenn keine Übereinstimmung
  */
-static bool do_param_name(const param_context_t *paramc) {
+static retval_t do_param_name(const param_context_t *paramc) {
     int result = 0;
 
     char *name = basename((char *) paramc->file_name);
@@ -822,12 +881,12 @@ static bool do_param_name(const param_context_t *paramc) {
     debug_print("DEBUG: do_param_name for '%s' with '%s' => %d\n", paramc->file_name, paramc->value, result);
 
     if (result == 0)
-        return true;
+        return P_PROCEED;
     else if (result == FNM_NOMATCH)
-        return false;
+        return P_STOP;
 
-    error(MF_ERR_INVALID_PATTERN, errno, "Pattern '%s' failed on '%s' with code '%d'", paramc->value, paramc->file_name, result);
-    return false;
+    error(0, errno, "Pattern '%s' failed on '%s' with code '%d'", paramc->value, paramc->file_name, result);
+    return ERR_INVALID_PATTERN;
 }
 
 /**
@@ -846,7 +905,7 @@ static bool do_param_name(const param_context_t *paramc) {
  * \return true wenn Übereinstimmung
  * \return false wenn keine Übereinstimmung
  */
-static bool do_param_path(const param_context_t *paramc) {
+static retval_t do_param_path(const param_context_t *paramc) {
     int result = 0;
 
     if (S_ISDIR(paramc->file_stat->st_mode))
@@ -855,10 +914,10 @@ static bool do_param_path(const param_context_t *paramc) {
     result = fnmatch(paramc->value, paramc->file_name, 0);
 
     if (result == 0)
-        return true;
+        return P_PROCEED;
     else if (result == FNM_NOMATCH)
-        return false;
+        return P_STOP;
 
-    error(MF_ERR_INVALID_PATTERN, errno, "Pattern '%s' failed on '%s' with code '%d'", paramc->value, paramc->file_name, result);
-    return false;
+    error(0, errno, "Pattern '%s' failed on '%s' with code '%d'", paramc->value, paramc->file_name, result);
+    return ERR_INVALID_PATTERN;
 }
