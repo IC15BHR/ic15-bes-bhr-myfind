@@ -105,7 +105,7 @@ char get_file_type(int mode);
 */
 static const char *const OPT_NAME[] = {NULL, "-print", "-ls", "-user", "-name", "-type", "-nouser", "-path"};
 
-//Error/Exit Codes
+// Error/Exit Codes
 static const retval_t ERR_NOERROR = 0x0000;
 static const retval_t ERR_NONCRITICAL = 0x0000;
 static const retval_t ERR_TO0_FEW_ARGUMENTS = 0x0011;
@@ -117,11 +117,11 @@ static const retval_t ERR_INVALID_TYPE_ARGUMENT = 0x0161;
 static const retval_t ERR_INVALID_PATTERN = 0x0171;
 static const retval_t ERR_NOT_IMPLEMENTED = 0xFFFF;
 
-//Param Check-Values
+// Param Check-Values
 static const retval_t VALUE_NOTNEEDED = 2;
 static const retval_t VALUE_OK = 3;
 
-//Param Command-Values
+// Param Command-Values
 static const retval_t P_PROCEED = 0;
 static const retval_t P_STOP = 1;
 /*
@@ -175,13 +175,13 @@ int main(int argc, char *argv[]) {
  */
 static void do_help(void) {
     fprintf(stdout, "Usage: find <dir> <expressions>\n\nExpressions:\n"
-           "  -print              returns formatted list\n"
-           "  -ls                 returns formatted list\n"
-           "  -user   <name/uid>  file-owners filter\n"
-           "  -name   <pattern>   file-name filter\n"
-           "  -type   [bcdpfls]   node-type filter\n"
-           "  -nouser             filter nonexisting owners\n"
-           "  -path   <pattern>   path filter\n");
+                    "  -print              returns formatted list\n"
+                    "  -ls                 returns formatted list\n"
+                    "  -user   <name/uid>  file-owners filter\n"
+                    "  -name   <pattern>   file-name filter\n"
+                    "  -type   [bcdpfls]   node-type filter\n"
+                    "  -nouser             filter nonexisting owners\n"
+                    "  -path   <pattern>   path filter\n");
 }
 
 /**
@@ -209,14 +209,14 @@ static retval_t do_file(const char *file_name, const char *const *parms) {
     result = lstat(file_name, &status);
     debug_print("DEBUG: lstat (%d:%d)\n", result, errno);
 
-    //do not panic on unreadable stat
+    // do not panic on unreadable stat
     if (result == -1) {
         error(ERR_NONCRITICAL, errno, "can't get stat of '%s'", file_name);
         errno = 0;
     } else {
         result = do_params(file_name, parms, &status);
 
-        //do not go deeper if an error has happend
+        // do not go deeper if an error has happend
         if (result == ERR_NOERROR && S_ISDIR(status.st_mode))
             result = do_dir(file_name, parms);
     }
@@ -249,7 +249,7 @@ static retval_t do_dir(const char *dir_name, const char *const *parms) {
         // readdir returns (NULL && errno=0) on EOF,
         // (NULL && errno != 0) is not EOF!
         while (((dp = readdir(dirp)) != NULL) || errno != 0) {
-            //leave "." and ".." links alone
+            // leave "." and ".." links alone
             if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) {
                 debug_print("DEBUG: skip '%s' '%s' (%d)\n", dir_name, dp->d_name, errno);
                 continue;
@@ -259,7 +259,7 @@ static retval_t do_dir(const char *dir_name, const char *const *parms) {
             char path[pathsize];
             snprintf(path, pathsize, "%s/%s", dir_name, dp->d_name);
 
-            //if readpath throws an error, print it and continue
+            // if readpath throws an error, print it and continue
             if (errno != 0) {
                 error(ERR_NONCRITICAL, errno, "can't read dir '%s'", path);
                 errno = 0;
@@ -269,7 +269,7 @@ static retval_t do_dir(const char *dir_name, const char *const *parms) {
             debug_print("DEBUG: readdir '%s' '%s'\n", dp->d_name, path);
 
             result = do_file(path, parms);
-            if(result != ERR_NOERROR)
+            if (result != ERR_NOERROR)
                 break;
         }
 
@@ -306,32 +306,31 @@ static retval_t do_params(const char *file_name, const char *const *parms, struc
     bool printed = false;
     param_context_t paramc = {file_name, s, NULL};
 
-    //TODO: Weiter kommentieren
-    //save current param to command and increment counter
+    // TODO: Weiter kommentieren
+    // save current param to command and increment counter
     while ((command = parms[i++]) != NULL) {
         nextParam = parms[i];
 
         opt_t opt = get_opt(command);
-        debug_print("DEBUG: found arg '%s' on '%d' as OPT:'%lu'\n", command, i-1, (long)opt);
+        debug_print("DEBUG: found arg '%s' on '%d' as OPT:'%lu'\n", command, i - 1, (long)opt);
 
-        if(opt == UNKNOWN){
+        if (opt == UNKNOWN) {
             error(0, 0, "invalid argument '%s'", command);
             return ERR_INVALID_ARGUMENT;
         }
 
         result = check_value(opt, nextParam);
 
-        //increment to skip value if value needed;
-        if(result == VALUE_OK) {
+        // increment to skip value if value needed;
+        if (result == VALUE_OK) {
             debug_print("DEBUG: using value '%s'\n", nextParam);
             i++;
-        } else if(result == VALUE_NOTNEEDED) {
-            debug_print("DEBUG: no value needed%s\n"," ");
-        }
-        else if (result == ERR_VALUE_UNEXPECTED) {
+        } else if (result == VALUE_NOTNEEDED) {
+            debug_print("DEBUG: no value needed%s\n", " ");
+        } else if (result == ERR_VALUE_UNEXPECTED) {
             error(0, 0, "unexpected value '%s' on '%s'", parms[i], command);
             break;
-        } else if(result == ERR_VALUE_MISSING) {
+        } else if (result == ERR_VALUE_MISSING) {
             error(0, 0, "missing value on '%s'", command);
             break;
         } else {
@@ -346,21 +345,21 @@ static retval_t do_params(const char *file_name, const char *const *parms, struc
         if (result != P_PROCEED)
             break;
 
-        switch(opt) {
-            case PRINT:
-            case LS:
-                printed = true;
-                break;
-            default:
-                break;
+        switch (opt) {
+        case PRINT:
+        case LS:
+            printed = true;
+            break;
+        default:
+            break;
         }
     }
 
     if (!printed && result == P_PROCEED)
         result = do_param_print(&paramc);
 
-    if(result == P_PROCEED || result == P_STOP)
-        result = ERR_NOERROR; //reset error
+    if (result == P_PROCEED || result == P_STOP)
+        result = ERR_NOERROR; // reset error
 
     debug_print("DEBUG: ended do_params with '%d' \n", result);
     return result;
@@ -376,15 +375,15 @@ static retval_t do_params(const char *file_name, const char *const *parms, struc
  * \relates OPT
  */
 static opt_t get_opt(const char *command) {
-    //start on index 1 because 0 is UNKNOWN = NULL
-    for(size_t j = 1; j < OPTS_COUNT; j++) {
+    // start on index 1 because 0 is UNKNOWN = NULL
+    for (size_t j = 1; j < OPTS_COUNT; j++) {
         const char *current_opt = OPT_NAME[j];
         if (strcmp(current_opt, command) == 0) {
-            return (opt_t) j;
+            return (opt_t)j;
         }
     };
 
-    return UNKNOWN; //default value if no valid param is found
+    return UNKNOWN; // default value if no valid param is found
 }
 
 /**
@@ -399,23 +398,23 @@ static opt_t get_opt(const char *command) {
  */
 static retval_t check_value(opt_t opt, const char *next_parm) {
     switch (opt) {
-        case PRINT:
-        case LS:
-        case NOUSER:
-            //if no value is expected check if next param is null or a valid arg (start with '-')
-            if (next_parm != NULL && next_parm[0] != '-')
-                return ERR_VALUE_MISSING;
-            return VALUE_NOTNEEDED;
-        case USER:
-        case TYPE:
-        case NAME:
-        case PATH:
-            // if value is needed check if not null
-            if (next_parm == NULL)
-                return ERR_VALUE_UNEXPECTED;
-            return VALUE_OK;
-        default:
-            return ERR_NOT_IMPLEMENTED;
+    case PRINT:
+    case LS:
+    case NOUSER:
+        // if no value is expected check if next param is null or a valid arg (start with '-')
+        if (next_parm != NULL && next_parm[0] != '-')
+            return ERR_VALUE_MISSING;
+        return VALUE_NOTNEEDED;
+    case USER:
+    case TYPE:
+    case NAME:
+    case PATH:
+        // if value is needed check if not null
+        if (next_parm == NULL)
+            return ERR_VALUE_UNEXPECTED;
+        return VALUE_OK;
+    default:
+        return ERR_NOT_IMPLEMENTED;
     }
 }
 
@@ -426,25 +425,25 @@ static retval_t check_value(opt_t opt, const char *next_parm) {
 static retval_t handle_param(opt_t opt, param_context_t *paramc) {
     debug_print("DEBUG: handle param '%d'\n", opt);
 
-    //call param method
+    // call param method
     switch (opt) {
-        case PRINT:
-            return do_param_print(paramc);
-        case LS:
-            return do_param_list(paramc);
-        case NOUSER:
-            return do_param_nouser(paramc);
-        case USER:
-            return do_param_user(paramc);
-        case TYPE:
-            return do_param_type(paramc);
-        case NAME:
-            return do_param_name(paramc);
-        case PATH:
-            return do_param_path(paramc);
-        default:
-            error(0, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", OPT_NAME[opt]);
-            return ERR_NOT_IMPLEMENTED;
+    case PRINT:
+        return do_param_print(paramc);
+    case LS:
+        return do_param_list(paramc);
+    case NOUSER:
+        return do_param_nouser(paramc);
+    case USER:
+        return do_param_user(paramc);
+    case TYPE:
+        return do_param_type(paramc);
+    case NAME:
+        return do_param_name(paramc);
+    case PATH:
+        return do_param_path(paramc);
+    default:
+        error(0, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", OPT_NAME[opt]);
+        return ERR_NOT_IMPLEMENTED;
     }
 }
 
@@ -505,9 +504,11 @@ static retval_t do_param_list(const param_context_t *paramc) {
     char permissions[11];
     snprintf_permissions(permissions, sizeof(permissions), paramc->file_stat->st_mode);
 
-    fprintf(stdout, "%6lu %4lu", s->st_ino, s->st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
+    fprintf(stdout, "%6lu %4lu", s->st_ino,
+            s->st_blocks / 2); // stat calculates with 512bytes blocksize ... 1024 should be used
     fprintf(stdout, " %s ", permissions);
-    fprintf(stdout, "%3d %-8s %-8s %8lu %s %s\n", (int)s->st_nlink, user_name, group_name, s->st_size, timetext, paramc->file_name);
+    fprintf(stdout, "%3d %-8s %-8s %8lu %s %s\n", (int)s->st_nlink, user_name, group_name, s->st_size, timetext,
+            paramc->file_name);
 
     return P_PROCEED;
 }
@@ -532,7 +533,7 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
     static char last_out[255];
     static size_t last_len;
 
-    if(last_in != *time){
+    if (last_in != *time) {
         struct tm lt;
 
         localtime_r(time, &lt);
@@ -561,13 +562,13 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
  * \return 0 Wenn kein User in passwd gefunden wurde
  * \return >0 Gibt länge des Usernamen zurück
  */
-//TODO: Wenn NULL als buf übergeben wird, trotzdem ausgabe der Länge
+// TODO: Wenn NULL als buf übergeben wird, trotzdem ausgabe der Länge
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
-    static uid_t last_in = UINT32_MAX; //not clean but effective
+    static uid_t last_in = UINT32_MAX; // not clean but effective
     static char last_out[255];
     static size_t name_len = 0;
 
-    if(last_in != uid) {
+    if (last_in != uid) {
         struct passwd *usr = getpwuid(uid);
 
         if (usr == NULL)
@@ -576,11 +577,11 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
             name_len = strlen(usr->pw_name);
             strncpy(last_out, usr->pw_name, name_len);
         }
-    }else{
+    } else {
         debug_print("DEBUG: cachehit on '%d'\n", uid);
     }
 
-    if(buf != NULL && name_len > 0)
+    if (buf != NULL && name_len > 0)
         strncpy(buf, last_out, bufsize);
 
     debug_print("DEBUG: got username with len '%lu'\n", name_len);
@@ -604,13 +605,13 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
  * \return 0 im Fehlerfall
  * \return strln wenn erfolgreich
  */
-//TODO: Kommentar ausbessern
+// TODO: Kommentar ausbessern
 static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
-    static gid_t last_in = UINT32_MAX; //not clean but effective
+    static gid_t last_in = UINT32_MAX; // not clean but effective
     static char last_out[255];
     static size_t name_len = 0;
 
-    if(last_in != gid){
+    if (last_in != gid) {
         struct group *grp = getgrgid(gid);
 
         if (grp == NULL)
@@ -620,7 +621,7 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
         strncpy(last_out, grp->gr_name, name_len + 1);
     }
 
-    if(buf != NULL)
+    if (buf != NULL)
         strncpy(buf, last_out, bufsize);
 
     return name_len;
@@ -664,15 +665,15 @@ static size_t snprintf_permissions(char *buf, size_t bufsize, int mode) {
     static int last_in;
     static char last_out[11];
 
-    //lookup cache
-    if(last_in != mode) {
+    // lookup cache
+    if (last_in != mode) {
         char lbuf[11] = "----------";
 
         // print node-type
         lbuf[0] = get_file_type(mode);
 
-        //regular files are displayed as '-'
-        if(lbuf[0] == 'f')
+        // regular files are displayed as '-'
+        if (lbuf[0] == 'f')
             lbuf[0] = '-';
 
         // print access mask
@@ -724,21 +725,21 @@ static size_t snprintf_permissions(char *buf, size_t bufsize, int mode) {
             lbuf[9] = 'S';
         }
 
-        //save to cache
+        // save to cache
         last_in = mode;
         strncpy(last_out, lbuf, 11);
     }
 
     strncpy(buf, last_out, bufsize);
-    return 10; //number im characters that should be written to buffer
+    return 10; // number im characters that should be written to buffer
 }
 
 char get_file_type(int mode) {
     static int last_input;
     static char last_output;
 
-    //reload cache if needed
-    if(last_input != mode) {
+    // reload cache if needed
+    if (last_input != mode) {
         if (S_ISBLK(mode)) {
             last_output = 'b';
         } else if (S_ISCHR(mode)) {
@@ -759,7 +760,7 @@ char get_file_type(int mode) {
     } else {
         debug_print("DEBUG: cachehit on '%d'\n", mode);
     }
-    //update cache
+    // update cache
     last_input = mode;
     debug_print("DEBUG: mode is '%c'\n", last_output);
     return last_output;
@@ -768,10 +769,11 @@ char get_file_type(int mode) {
 /**
  * do_param_nouser Funktion
  * Diese Funktion ...
- * TODO: Geht in die Funktion 'snprintf_username' und übergibt die Werte. Wnn '0' zurück kommt dann? Wenn != '0' zurück kommt dann?
+ * TODO: Geht in die Funktion 'snprintf_username' und übergibt die Werte. Wnn '0' zurück kommt dann? Wenn != '0' zurück
+ * kommt dann?
  */
 static retval_t do_param_nouser(const param_context_t *paramc) {
-    size_t name_len = snprintf_username(NULL,0, paramc->file_stat->st_uid);
+    size_t name_len = snprintf_username(NULL, 0, paramc->file_stat->st_uid);
     return (name_len == 0) ? P_PROCEED : P_STOP;
 }
 
@@ -795,7 +797,7 @@ static retval_t do_param_user(const param_context_t *paramc) {
     static char *last_value;
     static unsigned long last_uid;
 
-    if(last_value != paramc->value) {
+    if (last_value != paramc->value) {
         debug_print("DEBUG: resolving user '%s'\n", paramc->value);
 
         errno = 0;
@@ -811,7 +813,7 @@ static retval_t do_param_user(const param_context_t *paramc) {
         } else {
             last_uid = usr->pw_uid;
         }
-        last_value = (char*)paramc->value;
+        last_value = (char *)paramc->value;
     } else {
         debug_print("DEBUG: cachehit on '%s'\n", paramc->value);
     }
@@ -838,7 +840,7 @@ static retval_t do_param_type(const param_context_t *paramc) {
         return ERR_INVALID_TYPE_ARGUMENT;
     }
 
-    //only for validity checking
+    // only for validity checking
     switch (paramc->value[0]) {
     case 'b':
     case 'c':
@@ -850,7 +852,7 @@ static retval_t do_param_type(const param_context_t *paramc) {
         break;
     default:
         error(0, 0, "invalid flag on type '%c'", paramc->value[0]);
-        return  ERR_INVALID_TYPE_ARGUMENT;
+        return ERR_INVALID_TYPE_ARGUMENT;
     }
 
     char type_c = get_file_type(paramc->file_stat->st_mode);
@@ -876,7 +878,7 @@ static retval_t do_param_type(const param_context_t *paramc) {
 static retval_t do_param_name(const param_context_t *paramc) {
     int result = 0;
 
-    char *name = basename((char *) paramc->file_name);
+    char *name = basename((char *)paramc->file_name);
     result = fnmatch(paramc->value, name, 0);
     debug_print("DEBUG: do_param_name for '%s' with '%s' => %d\n", paramc->file_name, paramc->value, result);
 
