@@ -22,6 +22,12 @@ DOXYGEN=doxygen
 
 OBJECTS=main.o
 
+#Annuminas Hotfix
+ifeq "$(GCCVERSION)" "4.4.7"
+    CC=gcc52
+endif
+
+
 ##
 ## ----------------------------------------------------------------- rules --
 ##
