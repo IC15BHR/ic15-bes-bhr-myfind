@@ -11,7 +11,7 @@
 ## @version $2.0 $
 ##
 
-CC=gcc52
+CC=gcc
 GCCVERSION = $(shell gcc --version | grep ^gcc | sed 's/^.* //g')
 CFLAGS=-Wall -Werror -Wextra -Wstrict-prototypes -pedantic -fno-common -O3 -g -std=gnu11
 CP=cp
@@ -23,7 +23,7 @@ DOXYGEN=doxygen
 OBJECTS=main.o
 
 #Annuminas Hotfix
-ifeq "$(GCCVERSION)" "4.4.7"
+ifeq "$(GCCVERSION)" "4.4.7-16)"
     CC=gcc52
 endif
 
