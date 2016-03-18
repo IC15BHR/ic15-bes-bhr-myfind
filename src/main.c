@@ -144,7 +144,7 @@ static retval_t handle_param(const param_t *param, const param_context_t *paramc
 static retval_t do_param_print(const param_context_t *paramc);
 
 static retval_t do_param_list(const param_context_t *paramc);
-char get_file_type(int mode);
+static char get_file_type(int mode);
 static size_t snprintf_permissions(char *buf, size_t bufsize, int mode);
 static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid);
 static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid);
@@ -776,7 +776,7 @@ static size_t snprintf_permissions(char *buf, size_t bufsize, int mode) {
  *
  * \return einer der folgenden characters "bcdplsf" oder '-' wenn kein passendes Flag gefunden wurde
  */
-char get_file_type(int mode) {
+static char get_file_type(int mode) {
     if (S_ISBLK(mode)) {
         return 'b';
     } else if (S_ISCHR(mode)) {
