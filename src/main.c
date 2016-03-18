@@ -231,7 +231,7 @@ static void do_help(void) {
  * Wird ein Fehler beim auslesen der Attribute erkannt wird die Verarbeitung abgebrochen.
  *
  * \param file_name ist der relative Pfad der zu prüfenden Datei
- * \param params übernimmt die angegebenen Argumente
+ * \param parms übernimmt die angegebenen Argumente
  *
  * \func lstat() ließt die file-Attribute aus und speichert sie in einen Buffer
  * \func do_params() wird aufgerufen um die Parameter zu verarbeiten.
@@ -438,6 +438,7 @@ static retval_t get_param(const char *command, const char *next_param, param_t *
  * Enum returniert.
  *
  * \param command zu überprüfender Command-String
+ * \param opt Rückgabe Pointer
  *
  * \return opt_t gibt als Ergebnis einen Wert des Enums OPT zurück.
  */
