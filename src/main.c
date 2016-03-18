@@ -266,7 +266,7 @@ static retval_t do_file(const char *file_name, const char *const *parms) {
  * \brief Diese Funktion verarbeitet ein Directory indem es alle Einträge durchgeht und an do_file() übergibt.
  *
  * \param dir_name Name des zu verarbeitenden Verzeichnisses
- * \param params angegebenen Argumente
+ * \param parms angegebenen Argumente
  *
  * \func opendir() öffnet einen Directory-Stream um die Elemente des Directorys zu laden.
  * \func readdir() liefert einen Pointer zu einem "struct dirent" der den Eintrag beschreibt.
@@ -333,7 +333,7 @@ static retval_t do_dir(const char *dir_name, const char *const *parms) {
  *        Treffer den jeweiligen 'case' aus.
  *
  * \param file_name ist der relative Pfad der zu prüfenden Datei
- * \param params übernimmt die angegebenen Argumente
+ * \param parms übernimmt die angegebenen Argumente
  * \param file_stat ein Pointer auf das stat-struct der zu prüfenden Datei
  *
  * \func get_param() Analysiert die Usereingabe und gibt ein struct zurück
@@ -461,7 +461,7 @@ static retval_t strtoopt(const char *command, opt_t *opt) {
  * \brief Diese Funktion überprüft ob ein "value"-Zusatz zum Argument notwendig ist und überprüft die Gültigkeit.
  *
  * \param opt ausgewertetes Argument als Option-Wert
- * \param next_param unausgewerteter parameter der dem momentanen argument folgt (kann NULL sein)
+ * \param next_parm unausgewerteter parameter der dem momentanen argument folgt (kann NULL sein)
  *
  * \return gibt einen positiven Statuscode zwischen zurück.Bei Erfolg einen Fehlercode < 0
  */
@@ -490,7 +490,7 @@ static retval_t check_value(opt_t opt, const char *next_parm) {
 /**
  * \brief Diese Funktion bekommt OPT übergeben und die einzelnen Unterfunktionen,
  *        basierend auf OPT auf.
- * \param opt ausgewertetes Argument als Option-Wert
+ * \param param parameter-struct des gerade bearbeiteten Arguments
  * \param paramc context-struct der zu bearbeitenden Datei
  *
  * \return reicht die return-codes der aufgerufenen do_param_*-Funktion weiter.
@@ -604,7 +604,7 @@ static retval_t do_param_list(const param_context_t *paramc) {
  * \brief Diese Funktion gibt die Zeit der letzten Änderung des Files zurück.
  *
  * \param buf Char-Buffer für Ergebnis. Mindestens 80 Zeichen lang
- * \param buffsize Buffergröße um Buffer-Overflows zu verhindern
+ * \param bufsize Buffergröße um Buffer-Overflows zu verhindern
  * \param time Wert in UNIX_TIMESTAMP Format
  *
  * \func localtime_r() gibt die lokale Zeit im struct tm zurück und nutzt lt zum speichern des Ergebnisses.
@@ -628,7 +628,7 @@ static size_t snprintf_filetime(char *buf, size_t bufsize, const time_t *time) {
  * Eintrages, den Namen zurück.
  *
  * \param buf Char-Buffer für Ergebnis. NULL übergeben um nur zu validieren.
- * \param buffsize Buffergröße um Buffer-Overflows zu verhindern. Wenn buf NULL hier 0 übergeben.
+ * \param bufsize Buffergröße um Buffer-Overflows zu verhindern. Wenn buf NULL hier 0 übergeben.
  * \param uid User-ID
  *
  * \func getpwuid() Sucht einen Eintrag mit der passenden User-ID. Gibt 'NULL' im Fehlerfall zurück.
@@ -662,7 +662,7 @@ static size_t snprintf_username(char *buf, size_t bufsize, uid_t uid) {
  * Kopiert bei Erfolg den Namen der erhalten Gruppe in buf.
  *
  * \param buf Char-Buffer für Ergebnis. NULL übergeben um nur zu validieren.
- * \param buffsize Buffergröße um Buffer-Overflows zu verhindern. Wenn buf NULL hier 0 übergeben.
+ * \param bufsize Buffergröße um Buffer-Overflows zu verhindern. Wenn buf NULL hier 0 übergeben.
  * \param gid Gruppen-ID
  *
  * \func getgrgid() Sucht nach einen Eintrag mit der passenden Group-ID. Gibt 'NULL' im Fehlerfall zurück.
@@ -690,7 +690,7 @@ static size_t snprintf_groupname(char *buf, size_t bufsize, gid_t gid) {
  * \brief Diese Funktion gibt die Permissions aus.
  *
  * \param buf Char-Buffer für Ergebnis. Mindestens 11 Zeichen lang
- * \param buffsize Buffergröße um Buffer-Overflows zu verhindern.
+ * \param bufsize Buffergröße um Buffer-Overflows zu verhindern.
  * \param mode Das mode Bitmask-Field der zu untersuchenden Datei
  *
  * \func get_file_type() Wird aufgerufen um den Filetype zu ermitteln
@@ -818,6 +818,7 @@ static retval_t do_param_nouser(const param_context_t *paramc) {
  * Schlagen alle Versuche fehl wird ein Fehler zurückgegeben.
  * Wird der User richtig aufgelöst wird er gegen den Besitzer der Datei verglichen.
  *
+ * \param param parameter-struct des gerade bearbeiteten Arguments
  * \param paramc context-struct der zu bearbeitenden Datei
  *
  * \func getpwnam() Sucht einen Eintrag mit einem passenden Usernamen
@@ -860,6 +861,7 @@ static retval_t do_param_user(const param_t *param, const param_context_t *param
  *
  * Ansonsten wird der Type der Datei gegen den eingegebenen Type geprüft.
  *
+ * \param param parameter-struct des gerade bearbeiteten Arguments
  * \param paramc context-struct der zu bearbeitenden Datei
  *
  * \func strlen() gibt die Länge des Strings zurück.
@@ -889,6 +891,7 @@ static retval_t do_param_type(const param_t *param, const param_context_t *param
  *
  * Es wird der Basisteil des voll Datei-Namen über das gegebene Pattern verglichen.
  *
+ * \param param parameter-struct des gerade bearbeiteten Arguments
  * \param paramc context-struct der zu bearbeitenden Datei
  *
  * \func basename() gibt die letzte Komponente des Pfardes zurück.
@@ -917,6 +920,7 @@ static retval_t do_param_name(const param_t *param, const param_context_t *param
  *
  * Es wird der voll Datei-Namen (= Pfad) über das gegebene Pattern verglichen.
  *
+ * \param param parameter-struct des gerade bearbeiteten Arguments
  * \param paramc context-struct der zu bearbeitenden Datei
  *
  * \func fnmatch() überprüft ob 'file_name' mit 'value' übereinstimmt.
@@ -941,6 +945,9 @@ static retval_t do_param_path(const param_t *param, const param_context_t *param
 /**
  * \brief Dient zum Ausgeben von benutzerfreundlichen Fehlermeldungen
  *
+ * \param param parameter-struct des gerade bearbeiteten Arguments
+ * \param result gegebener ErrorCode der zu bearbeiten ist
+ *
  * \func error() Wird nur mit (0, 0, ...) aufgerufen um einen exit-call zu vermeiden
  */
 static void handle_error(const param_t *param, int result) {
@@ -963,13 +970,13 @@ static void handle_error(const param_t *param, int result) {
         error(0, 0, "NOT IMPLEMENTED: can't unhandle command '%s'!", command);
         break;
     case ERR_OUTPUT_BROKEN:
-        error(0, errno, "can't write to stdout!");
+        error(0, 0, "can't write to stdout!");
         break;
     case ERR_NO_USER_FOUND:
-        error(0, errno, "Can't find user '%s'", param->value);
+        error(0, 0, "Can't find user '%s'", param->value);
         break;
     case ERR_INVALID_PATTERN:
-        error(0, errno, "Pattern '%s' with code '%d'", param->value, result);
+        error(0, 0, "Pattern '%s' with code '%d'", param->value, result);
         break;
     default:
         break;
