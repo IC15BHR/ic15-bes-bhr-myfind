@@ -27,6 +27,7 @@
 // -------------------------------------------------------------- includes --
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <string.h>
 #include <error.h>
@@ -201,9 +202,8 @@ int main(int argc, char *argv[]) {
     result = do_file(argv[1], parms);
     debug_print("DEBUG: Finished execution! Exitcode: '%d'\n", result);
 
-    if(result < 0)
-        return (unsigned int)result;
-    return result;
+    //returning positive errornumber if error happend
+    return (unsigned int)result;
 }
 
 /**
@@ -225,7 +225,7 @@ static void do_help(void) {
 
 /**
  * \brief Diese Funktion überprüft ob es sich um ein directory handelt oder nicht
- *        und ruftin jedem fall do_params() auf.
+ *        und ruft, wenn kein Fehler passiert ist, do_params() auf.
  *
  * Wird ein Directory erkannt, wird zusätzlich do_dir aufgerufen.
  * Wird ein Fehler beim auslesen der Attribute erkannt wird die Verarbeitung abgebrochen.
@@ -349,6 +349,7 @@ static retval_t do_params(const char *file_name, const char *const *parms, struc
     retval_t result = OK_PROCEED;
     param_context_t paramc = {file_name, file_stat};
     param_t param = {INVALID, NULL};
+    bool printed = false;
 
     // save current param to command and increment counter
     while ((command = parms[i++]) != NULL) {
@@ -365,14 +366,18 @@ static retval_t do_params(const char *file_name, const char *const *parms, struc
         // handle possible error
         if (result != OK_PROCEED)
             break;
+
+        //if output happend, set printed flag
+        if(param.opt == LS || param.opt == PRINT)
+            printed = true;
     }
 
     // print some error-info if error happend
     if (result < 0)
         handle_error(&param, result);
     else {
-        // if no error or STOP happend and no LS or PRINT at the end => do print
-        if (result == OK_PROCEED && !(param.opt == LS || param.opt == PRINT))
+        // if no error or STOP happend and line is not already printed => do print
+        if (result == OK_PROCEED && !printed)
             result = do_param_print(&paramc);
 
         // normalize positive return for better upstream handling
