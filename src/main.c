@@ -3,16 +3,22 @@
  * Betriebssysteme MyFindBetriebssysteme MyFind
  * Beispiel 1
  *
- * Dieses Programm liest die Nutzereingaben:
- * -ls, -user, -name, -type, -nouser, -path aus.
+ * Dies ist das Main-Modul des Programms MyFind
  *
- * Es arbeitet dabei wie das "find" programm von Linux.
+ * Es akzeptiert diese möglichen Argumente:
+ * -ls, -user, -name, -type, -nouser, -path.
+ *
+ * Die Funktionsweise ist an das unter Linux verbreitete Programm "find" angelehnt
+ * Es durchsucht das gegebene Verzeichnis nach weiteren Verzeichnissen und Files und
+ * validiert diese gegen eine beliebige Anzahl an Expression-Argumenten um zutreffende
+ * Files und Directories auszugeben. Die Ausgabe kann mit bestimmten Parametern formatiert
+ * werden.
  *
  * @author Baliko Markus	    <ic15b001@technikum-wien.at>
  * @author Haubner Alexander    <ic15b033@technikum-wien.at>
  * @author Riedmann Michael     <ic15b054@technikum-wien.at>
  *
- * @date 2015/03/18
+ * @date 2016/03/18
  *
  * @version 2.0
  *
@@ -195,6 +201,8 @@ int main(int argc, char *argv[]) {
     result = do_file(argv[1], parms);
     debug_print("DEBUG: Finished execution! Exitcode: '%d'\n", result);
 
+    if(result < 0)
+        return (unsigned int)result;
     return result;
 }
 
@@ -556,11 +564,11 @@ static retval_t do_param_list(const param_context_t *paramc) {
 
     // Get Group Name
     char group_name[GROUPNAME_MAX];
-    snprintf_groupname(group_name, sizeof(group_name), paramc->file_stat->st_gid);
+    (void) snprintf_groupname(group_name, sizeof(group_name), paramc->file_stat->st_gid);
 
     // Get Permissions
     char permissions[PERMISSIONS_TEXT_SIZE];
-    snprintf_permissions(permissions, sizeof(permissions), paramc->file_stat->st_mode);
+    (void) snprintf_permissions(permissions, sizeof(permissions), paramc->file_stat->st_mode);
 
     // on error return error-code, otherwise return PROCEED
     return (fprintf(stdout,
